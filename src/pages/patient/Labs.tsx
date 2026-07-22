@@ -1,36 +1,29 @@
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { ButtonLink } from '@/components/ui/Button';
+import { AsyncState } from '@/components/AsyncState';
+import { useAuth } from '@/auth/AuthProvider';
+import { useAsyncData } from '@/lib/useAsyncData';
+import { prescriptionsApi, normalizePrescriptions, getPrescriptionId } from '@/api/prescriptions';
 
-const LAB_STEPS = [
-  { title: 'Направление от врача', status: '—' },
-  { title: 'Сдача биоматериала', status: '—' },
-  { title: 'Результаты в документах', status: '—' },
-];
-
-const PHARM_STEPS = [
-  { title: 'Электронный рецепт', status: 'Ожидает врача' },
-  { title: 'Бронирование в аптеке', status: '—' },
-  { title: 'Готов к выдаче', status: '—' },
-];
-
-function StatusList({ items }: { items: { title: string; status: string }[] }) {
-  return (
-    <div className="mt-5 flex flex-col gap-3">
-      {items.map((item) => (
-        <div
-          key={item.title}
-          className="flex items-center justify-between rounded-md border border-border px-4 py-4"
-        >
-          <span className="text-[14px] font-semibold text-text">{item.title}</span>
-          <span className="text-[14px] text-text-muted">{item.status}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
+const STATUS_LABELS: Record<string, string> = {
+  draft: 'Оформляется врачом',
+  signed: 'Подписан',
+  sent_to_pharmacy: 'Отправлен в аптеку',
+  dispensed: 'Выдан',
+  cancelled: 'Отменён',
+};
 
 export function Labs() {
+  const { patientId } = useAuth();
+
+  const { data, loading, error, reload } = useAsyncData(
+    () => (patientId ? prescriptionsApi.listForPatient(patientId) : Promise.resolve(null)),
+    [patientId],
+  );
+
+  const prescriptions = normalizePrescriptions(data);
+
   return (
     <div>
       <PageHeader
@@ -40,19 +33,40 @@ export function Labs() {
         backLabel="К моему пути"
       />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card className="p-6">
-          <h3 className="text-[16px] font-semibold text-text">Лаборатория Vitals Lab</h3>
-          <p className="mt-2 text-[14px] text-text-muted">Статус: ожидает назначения врача</p>
-          <StatusList items={LAB_STEPS} />
-        </Card>
+      <AsyncState loading={loading} error={error} onRetry={reload}>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <Card className="p-6">
+            <h3 className="text-[16px] font-semibold text-text">Лаборатория Vitals Lab</h3>
+            <p className="mt-2 text-[14px] text-text-muted">
+              Направления на анализы появляются после консультации врача — статус будет виден в
+              документах.
+            </p>
+          </Card>
 
-        <Card className="p-6">
-          <h3 className="text-[16px] font-semibold text-text">Аптека-партнёр</h3>
-          <p className="mt-2 text-[14px] text-text-muted">Статус: рецепт ещё не выписан</p>
-          <StatusList items={PHARM_STEPS} />
-        </Card>
-      </div>
+          <Card className="p-6">
+            <h3 className="text-[16px] font-semibold text-text">Рецепты</h3>
+            {prescriptions.length === 0 ? (
+              <p className="mt-2 text-[14px] text-text-muted">Активных рецептов пока нет.</p>
+            ) : (
+              <div className="mt-5 flex flex-col gap-3">
+                {prescriptions.map((p) => (
+                  <div
+                    key={getPrescriptionId(p)}
+                    className="flex items-center justify-between rounded-md border border-border px-4 py-4"
+                  >
+                    <span className="text-[14px] font-semibold text-text">
+                      {p.diagnosisForPrescription ?? 'Рецепт'}
+                    </span>
+                    <span className="text-[14px] text-text-muted">
+                      {STATUS_LABELS[(p.status ?? '').toLowerCase()] ?? p.status ?? '—'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+      </AsyncState>
 
       <Card className="mt-6 p-6">
         <h3 className="text-[16px] font-semibold text-text">Всё в одном контексте</h3>

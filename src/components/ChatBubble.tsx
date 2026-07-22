@@ -1,4 +1,4 @@
-import type { ChatMessage } from '@/mock/data';
+import type { ChatMessage } from '@/types/chat';
 
 export function ChatBubble({ message }: { message: ChatMessage }) {
   const isAssistant = message.from === 'ai' || message.from === 'doctor';

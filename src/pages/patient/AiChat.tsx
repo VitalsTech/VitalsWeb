@@ -4,17 +4,19 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Input';
 import { ChatBubble } from '@/components/ChatBubble';
-import { fullTriageMessages, triageQuickPhrases } from '@/mock/data';
-import type { ChatMessage } from '@/mock/data';
-import { nextId } from '@/lib/id';
+import { useAuth } from '@/auth/AuthProvider';
+import { useTriageSession } from './useTriageSession';
+
+const QUICK_PHRASES = ['Стало хуже', 'Нужна консультация', 'После процедуры'];
 
 export function AiChat() {
-  const [messages, setMessages] = useState<ChatMessage[]>(fullTriageMessages);
+  const { patientId } = useAuth();
+  const { messages, sending, error, send } = useTriageSession(patientId);
   const [draft, setDraft] = useState('');
 
-  function sendMessage(text: string) {
+  async function submit(text: string) {
     if (!text.trim()) return;
-    setMessages((prev) => [...prev, { id: nextId('u'), from: 'user', text }]);
+    await send(text);
     setDraft('');
   }
 
@@ -22,25 +24,32 @@ export function AiChat() {
     <div>
       <PageHeader
         title="Чат с ИИ"
-        description="Детальный диалог триажа с быстрыми ответами"
+        description="Продолжение диалога ИИ-триажа с быстрыми ответами"
         backTo="/patient"
         backLabel="К моему пути"
       />
 
       <Card className="flex max-h-[560px] flex-col gap-4 overflow-y-auto p-6 scrollbar-thin">
-        {messages.map((m) => (
-          <ChatBubble key={m.id} message={m} />
-        ))}
-        <p className="text-[13px] text-text-muted">ИИ печатает…</p>
+        {messages.length === 0 ? (
+          <p className="text-[13px] text-text-muted">
+            Напишите сообщение, чтобы начать диалог с ИИ-ассистентом Vitals.
+          </p>
+        ) : (
+          messages.map((m) => <ChatBubble key={m.id} message={m} />)
+        )}
+        {sending && <p className="text-[13px] text-text-muted">ИИ печатает…</p>}
       </Card>
 
+      {error && <p className="mt-3 text-[13px] text-danger">{error}</p>}
+
       <Card className="mt-6 flex flex-wrap gap-3 p-5">
-        {triageQuickPhrases.slice(0, 3).map((phrase) => (
+        {QUICK_PHRASES.map((phrase) => (
           <button
             key={phrase}
             type="button"
-            onClick={() => sendMessage(phrase)}
-            className="rounded-md border border-border bg-surface px-4 py-3 text-[13px] font-semibold text-text transition-colors hover:border-accent"
+            disabled={sending}
+            onClick={() => submit(phrase)}
+            className="rounded-md border border-border bg-surface px-4 py-3 text-[13px] font-semibold text-text transition-colors hover:border-accent disabled:opacity-60"
           >
             {phrase}
           </button>
@@ -55,7 +64,9 @@ export function AiChat() {
           placeholder="Опишите симптомы…"
           className="flex-1"
         />
-        <Button onClick={() => sendMessage(draft)}>Отправить</Button>
+        <Button disabled={sending} onClick={() => submit(draft)}>
+          Отправить
+        </Button>
       </Card>
     </div>
   );

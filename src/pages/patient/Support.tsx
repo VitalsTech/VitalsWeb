@@ -1,12 +1,55 @@
 import { useState } from 'react';
+import type { FormEvent } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { FieldLabel, Select, Textarea } from '@/components/ui/Input';
-import { faqItems } from '@/mock/data';
+import { useAuth } from '@/auth/AuthProvider';
+import { medicalRecordsApi } from '@/api/medicalRecords';
+
+const FAQ_ITEMS = [
+  {
+    q: 'Как подключить ЕСИА?',
+    a: 'На экране входа выберите «Войти через ЕСИА» и подтвердите данные на Госуслугах.',
+  },
+  {
+    q: 'Где мои результаты анализов?',
+    a: 'Раздел «Документы» синхронизируется с клиникой и лабораторией после интеграции.',
+  },
+  {
+    q: 'Как изменить записанный приём?',
+    a: 'Раздел «Врачи» → карточка специалиста → управление записью или отмена.',
+  },
+];
 
 export function Support() {
+  const { patientId } = useAuth();
+  const [topic, setTopic] = useState('tech');
+  const [message, setMessage] = useState('');
   const [sent, setSent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!patientId) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await medicalRecordsApi.appendEvent(patientId, {
+        eventType: 'support_request',
+        sourceService: 'patient-portal',
+        payloadJson: JSON.stringify({ topic, message }),
+        occurredAt: new Date().toISOString(),
+      });
+      setSent(true);
+      setMessage('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось отправить обращение.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div>
@@ -16,7 +59,7 @@ export function Support() {
         <Card className="p-6">
           <h3 className="text-[16px] font-semibold text-text">FAQ</h3>
           <div className="mt-4 flex flex-col gap-3">
-            {faqItems.map((item) => (
+            {FAQ_ITEMS.map((item) => (
               <details
                 key={item.q}
                 className="group rounded-md border border-border px-4 py-3 open:bg-surface-muted"
@@ -32,16 +75,10 @@ export function Support() {
 
         <Card className="p-6">
           <h3 className="text-[16px] font-semibold text-text">Обратиться</h3>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              setSent(true);
-            }}
-            className="mt-4 flex flex-col gap-5"
-          >
+          <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-5">
             <div>
               <FieldLabel>Тема</FieldLabel>
-              <Select defaultValue="tech">
+              <Select value={topic} onChange={(e) => setTopic(e.target.value)}>
                 <option value="tech">Техника</option>
                 <option value="billing">Оплата</option>
                 <option value="medical">Медицинский вопрос</option>
@@ -50,10 +87,17 @@ export function Support() {
             </div>
             <div>
               <FieldLabel>Сообщение</FieldLabel>
-              <Textarea rows={7} placeholder="Опишите проблему" required />
+              <Textarea
+                rows={7}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Опишите проблему"
+                required
+              />
             </div>
-            <Button type="submit" size="lg" fullWidth>
-              {sent ? 'Отправлено ✓' : 'Отправить'}
+            {error && <p className="text-[13px] text-danger">{error}</p>}
+            <Button type="submit" size="lg" fullWidth disabled={submitting}>
+              {sent ? 'Отправлено ✓' : submitting ? 'Отправка…' : 'Отправить'}
             </Button>
           </form>
         </Card>

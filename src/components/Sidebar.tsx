@@ -58,10 +58,12 @@ export function Sidebar() {
         </div>
         <button
           type="button"
-          onClick={logout}
+          onClick={() => {
+            void logout().catch(() => {});
+          }}
           className="text-left text-[13px] text-sidebar-foreground-muted transition-colors hover:text-white"
         >
-          Выйти из демо-аккаунта
+          Выйти из аккаунта
         </button>
       </div>
     </aside>
