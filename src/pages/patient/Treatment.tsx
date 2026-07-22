@@ -2,20 +2,42 @@ import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { AsyncState } from '@/components/AsyncState';
+import { useAuth } from '@/auth/AuthProvider';
+import { useAsyncData } from '@/lib/useAsyncData';
+import { medicalRecordsApi, normalizeHistory } from '@/api/medicalRecords';
+import { prescriptionsApi, normalizePrescriptions, getPrescriptionId } from '@/api/prescriptions';
 
-const DONE = [
-  'ИИ-триаж — 12.07.2026',
-  'Запись к кардиологу — 15.07, 10:40',
-  'Измерение АД перед приёмом',
-];
+const EVENT_LABELS: Record<string, string> = {
+  triage_session: 'ИИ-триаж',
+  consultation: 'Консультация',
+  document: 'Документ добавлен',
+  mood_check: 'Отметка самочувствия',
+  support_request: 'Обращение в поддержку',
+  house_call_request: 'Вызов врача на дом',
+};
 
-const WAITING = [
-  { title: 'Консультация кардиолога', meta: '15.07, 10:40', hasAction: true },
-  { title: 'Назначить анализы', meta: 'После приёма' },
-  { title: 'Получить рецепт', meta: 'После назначения' },
-];
+const PENDING_STATUSES = new Set(['draft', 'pending', 'created']);
 
 export function Treatment() {
+  const { patientId } = useAuth();
+
+  const history = useAsyncData(
+    () => (patientId ? medicalRecordsApi.getHistory(patientId) : Promise.resolve(null)),
+    [patientId],
+  );
+  const prescriptions = useAsyncData(
+    () => (patientId ? prescriptionsApi.listForPatient(patientId) : Promise.resolve(null)),
+    [patientId],
+  );
+
+  const events = normalizeHistory(history.data);
+  const allPrescriptions = normalizePrescriptions(prescriptions.data);
+  const waitingPrescriptions = allPrescriptions.filter((p) => {
+    const status = (p.status ?? '').toLowerCase();
+    return status === '' || PENDING_STATUSES.has(status);
+  });
+
   return (
     <div>
       <PageHeader
@@ -29,33 +51,54 @@ export function Treatment() {
         <Card className="p-6">
           <h3 className="text-[16px] font-semibold text-text">Выполнено</h3>
           <div className="mt-4 flex flex-col gap-3">
-            {DONE.map((item) => (
-              <div key={item} className="rounded-md border border-border px-4 py-3">
-                <p className="text-[14px] text-success">✓ {item}</p>
-              </div>
-            ))}
+            <AsyncState loading={history.loading} error={history.error} onRetry={history.reload}>
+              {events.length === 0 ? (
+                <p className="text-[13px] text-text-muted">Пока нет завершённых шагов.</p>
+              ) : (
+                events.map((event, i) => (
+                  <div key={event.id ?? i} className="rounded-md border border-border px-4 py-3">
+                    <p className="text-[14px] text-success">
+                      ✓ {EVENT_LABELS[event.eventType ?? ''] ?? event.eventType ?? 'Событие'}
+                      {event.occurredAt
+                        ? ` — ${new Date(event.occurredAt).toLocaleDateString('ru-RU')}`
+                        : ''}
+                    </p>
+                  </div>
+                ))
+              )}
+            </AsyncState>
           </div>
         </Card>
 
         <Card className="p-6">
           <h3 className="text-[16px] font-semibold text-text">Ожидает вас</h3>
           <div className="mt-4 flex flex-col gap-3">
-            {WAITING.map((item) => (
-              <div
-                key={item.title}
-                className="flex items-center justify-between gap-4 rounded-md border border-border px-4 py-4"
-              >
-                <div>
-                  <p className="text-[15px] font-semibold text-text">{item.title}</p>
-                  <p className="mt-1 text-[13px] text-text-muted">{item.meta}</p>
-                </div>
-                {item.hasAction && (
-                  <Button size="sm" className="flex-shrink-0">
-                    Открыть
-                  </Button>
-                )}
-              </div>
-            ))}
+            <AsyncState
+              loading={prescriptions.loading}
+              error={prescriptions.error}
+              onRetry={prescriptions.reload}
+            >
+              {waitingPrescriptions.length === 0 ? (
+                <p className="text-[13px] text-text-muted">Активных назначений пока нет.</p>
+              ) : (
+                waitingPrescriptions.map((p) => (
+                  <div
+                    key={getPrescriptionId(p)}
+                    className="flex items-center justify-between gap-4 rounded-md border border-border px-4 py-4"
+                  >
+                    <div>
+                      <p className="text-[15px] font-semibold text-text">
+                        {p.diagnosisForPrescription ?? 'Назначение врача'}
+                      </p>
+                      <p className="mt-1 text-[13px] text-text-muted">{p.status ?? 'ожидает обработки'}</p>
+                    </div>
+                    <Button size="sm" className="flex-shrink-0" disabled>
+                      Открыть
+                    </Button>
+                  </div>
+                ))
+              )}
+            </AsyncState>
           </div>
         </Card>
       </div>

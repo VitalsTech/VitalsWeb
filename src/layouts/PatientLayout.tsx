@@ -3,10 +3,18 @@ import { Sidebar } from '@/components/Sidebar';
 import { useAuth } from '@/auth/AuthProvider';
 
 export function PatientLayout() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
 
   if (!isAuthenticated) {
     return <Navigate to="/patient/auth" replace />;
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-bg">
+        <p className="text-[14px] text-text-muted">Загрузка…</p>
+      </div>
+    );
   }
 
   return (

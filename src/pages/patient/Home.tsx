@@ -2,22 +2,66 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { ButtonLink } from '@/components/ui/Button';
+import { AsyncState } from '@/components/AsyncState';
 import { useAuth } from '@/auth/AuthProvider';
-import { careSteps } from '@/mock/data';
+import { useAsyncData } from '@/lib/useAsyncData';
+import { medicalRecordsApi, normalizeHistory, parseEventPayload } from '@/api/medicalRecords';
+import type { MedicalRecordEventDto } from '@/api/medicalRecords';
 
 const MOODS = ['Хорошо', 'Устала', 'Стало хуже'];
 
-const STEP_LINK: Record<string, string> = {
-  triage: '/patient/ai-chat',
-  consult: '/patient/doctors/fedorova',
-  labs: '/patient/labs',
-  prescription: '/patient/labs',
+const EVENT_LABELS: Record<string, string> = {
+  triage_session: 'ИИ-триаж',
+  consultation: 'Консультация',
+  document: 'Документ',
+  prescription: 'Рецепт',
+  mood_check: 'Отметка самочувствия',
+  support_request: 'Обращение в поддержку',
+  house_call_request: 'Вызов врача на дом',
 };
 
+function formatEventTitle(event: MedicalRecordEventDto) {
+  const type = event.eventType ?? 'event';
+  return EVENT_LABELS[type] ?? type;
+}
+
+function formatEventDate(event: MedicalRecordEventDto) {
+  const raw = event.occurredAt ?? event.createdAt;
+  if (!raw) return '';
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
 export function Home() {
-  const { patientName } = useAuth();
-  const [mood, setMood] = useState('Стало хуже');
+  const { patientName, patientId } = useAuth();
+  const [mood, setMood] = useState<string | null>(null);
+  const [savingMood, setSavingMood] = useState(false);
+
+  const history = useAsyncData(
+    () => (patientId ? medicalRecordsApi.getHistory(patientId) : Promise.resolve(null)),
+    [patientId],
+  );
+
+  const events = normalizeHistory(history.data).slice(0, 6);
+
+  async function submitMood(nextMood: string) {
+    setMood(nextMood);
+    if (!patientId) return;
+    setSavingMood(true);
+    try {
+      await medicalRecordsApi.appendEvent(patientId, {
+        eventType: 'mood_check',
+        sourceService: 'patient-portal',
+        payloadJson: JSON.stringify({ mood: nextMood }),
+        occurredAt: new Date().toISOString(),
+      });
+      history.reload();
+    } finally {
+      setSavingMood(false);
+    }
+  }
 
   return (
     <div>
@@ -28,36 +72,41 @@ export function Home() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_302px]">
         <Card className="p-6">
-          <h2 className="text-[20px] font-bold text-text">Ваш маршрут</h2>
-          <p className="mt-1 text-[13px] text-text-muted">Активный процесс · шаг 2 из 4</p>
+          <h2 className="text-[20px] font-bold text-text">История</h2>
+          <p className="mt-1 text-[13px] text-text-muted">Последние события вашей карты</p>
 
           <div className="mt-6 flex flex-col gap-3">
-            {careSteps.map((step) => (
-              <Link
-                key={step.id}
-                to={STEP_LINK[step.id] ?? '/patient'}
-                className="flex items-center gap-4 rounded-md border border-border px-4 py-5 transition-colors hover:border-accent"
-              >
-                <span
-                  className={`h-6 w-6 flex-shrink-0 rounded-full ${
-                    step.status === 'done'
-                      ? 'bg-success'
-                      : step.status === 'current'
-                        ? 'bg-primary'
-                        : 'border border-border bg-surface'
-                  }`}
-                />
-                <div>
-                  <p className="text-[15px] font-semibold text-text">{step.title}</p>
-                  <p className="mt-1 text-[13px] text-text-muted">{step.description}</p>
-                </div>
-              </Link>
-            ))}
+            <AsyncState loading={history.loading} error={history.error} onRetry={history.reload}>
+              {events.length === 0 ? (
+                <p className="rounded-md border border-border px-4 py-5 text-[13px] text-text-muted">
+                  Пока нет событий — начните с ИИ-триажа или запишитесь к врачу.
+                </p>
+              ) : (
+                events.map((event, i) => {
+                  const payload = parseEventPayload<{ mood?: string }>(event);
+                  return (
+                    <div
+                      key={event.id ?? i}
+                      className="flex items-center gap-4 rounded-md border border-border px-4 py-5"
+                    >
+                      <span className="h-6 w-6 flex-shrink-0 rounded-full bg-primary" />
+                      <div>
+                        <p className="text-[15px] font-semibold text-text">
+                          {formatEventTitle(event)}
+                          {payload?.mood ? `: ${payload.mood}` : ''}
+                        </p>
+                        <p className="mt-1 text-[13px] text-text-muted">{formatEventDate(event)}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </AsyncState>
           </div>
 
-          <Button size="lg" className="mt-6 w-full max-w-[400px] justify-start">
-            Следующий шаг: подготовиться к приёму
-          </Button>
+          <ButtonLink to="/patient/triage" size="lg" className="mt-6 w-full max-w-[400px] justify-start">
+            Начать ИИ-триаж
+          </ButtonLink>
         </Card>
 
         <Card className="flex flex-col p-6">
@@ -71,8 +120,9 @@ export function Home() {
               <button
                 key={m}
                 type="button"
-                onClick={() => setMood(m)}
-                className={`h-11 w-[92px] rounded-md text-[13px] font-semibold transition-colors ${
+                disabled={savingMood}
+                onClick={() => submitMood(m)}
+                className={`h-11 w-[92px] rounded-md text-[13px] font-semibold transition-colors disabled:opacity-60 ${
                   mood === m
                     ? 'bg-primary text-primary-foreground'
                     : 'border border-border bg-surface text-text'
@@ -83,15 +133,7 @@ export function Home() {
             ))}
           </div>
 
-          <h3 className="mt-8 text-center text-[16px] font-semibold text-text">На сегодня</h3>
-          <p className="mt-4 text-center text-[13px] text-text-muted">
-            Рецепт №482391 активен до 15.06
-          </p>
-          <p className="mt-2 text-center text-[13px] text-text-muted">
-            Напоминание: измерить давление утром
-          </p>
-
-          <div className="mx-auto mt-6 flex w-full flex-col gap-3">
+          <div className="mx-auto mt-8 flex w-full flex-col gap-3">
             <Link
               to="/patient/house-call"
               className="rounded-md border border-border py-2.5 text-center text-[13px] font-semibold text-text transition-colors hover:border-accent"

@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { FieldLabel, Input } from '@/components/ui/Input';
+import { useAuth } from '@/auth/AuthProvider';
+import { medicalRecordsApi } from '@/api/medicalRecords';
 
 const STEPS = [
   'Вы оставляете заявку с адресом и симптомами.',
@@ -13,11 +16,39 @@ const STEPS = [
 ];
 
 export function HouseCall() {
+  const { patientId } = useAuth();
   const navigate = useNavigate();
 
-  function handleSubmit(e: FormEvent) {
+  const [address, setAddress] = useState('');
+  const [symptoms, setSymptoms] = useState('');
+  const [desiredTime, setDesiredTime] = useState('');
+  const [phone, setPhone] = useState('');
+  const [urgent, setUrgent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    navigate('/patient');
+    if (!patientId) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      // The contract's /consultations endpoint requires a doctorId, which
+      // doesn't fit a house-call request (a dispatcher assigns the doctor
+      // afterwards) — so we record the request as a medical-record event
+      // instead, which the dispatch/back-office can pick up from history.
+      await medicalRecordsApi.appendEvent(patientId, {
+        eventType: 'house_call_request',
+        sourceService: 'patient-portal',
+        payloadJson: JSON.stringify({ address, symptoms, desiredTime, phone, urgent }),
+        occurredAt: new Date().toISOString(),
+      });
+      navigate('/patient');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось отправить заявку.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -35,26 +66,47 @@ export function HouseCall() {
           <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-5">
             <div>
               <FieldLabel>Адрес</FieldLabel>
-              <Input defaultValue="ул. Примерная, д. 12, кв. 45" required />
+              <Input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="ул. Примерная, д. 12, кв. 45"
+                required
+              />
             </div>
             <div>
               <FieldLabel>Симптомы</FieldLabel>
-              <Input defaultValue="Повышенное давление, слабость" required />
+              <Input
+                value={symptoms}
+                onChange={(e) => setSymptoms(e.target.value)}
+                placeholder="Повышенное давление, слабость"
+                required
+              />
             </div>
             <div>
               <FieldLabel>Желаемое время</FieldLabel>
-              <Input defaultValue="Сегодня, 14:00–18:00" required />
+              <Input
+                value={desiredTime}
+                onChange={(e) => setDesiredTime(e.target.value)}
+                placeholder="Сегодня, 14:00–18:00"
+                required
+              />
             </div>
             <div>
               <FieldLabel>Контактный телефон</FieldLabel>
-              <Input defaultValue="+7 900 123-45-67" required />
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+7 900 123-45-67" required />
             </div>
             <label className="flex h-12 items-center gap-3 rounded-md border border-border px-4 text-[14px] text-text">
-              <input type="checkbox" className="accent-[var(--color-accent)]" />
+              <input
+                type="checkbox"
+                checked={urgent}
+                onChange={(e) => setUrgent(e.target.checked)}
+                className="accent-[var(--color-accent)]"
+              />
               ⚠ Срочный вызов (доплата)
             </label>
-            <Button type="submit" className="w-fit">
-              Отправить заявку
+            {error && <p className="text-[13px] text-danger">{error}</p>}
+            <Button type="submit" className="w-fit" disabled={submitting}>
+              {submitting ? 'Отправка…' : 'Отправить заявку'}
             </Button>
           </form>
         </Card>
