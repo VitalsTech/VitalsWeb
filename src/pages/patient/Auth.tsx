@@ -19,7 +19,7 @@ export function Auth() {
   const [firstName, setFirstName] = useState('');
   const [secondName, setSecondName] = useState('');
   const [birthDate, setBirthDate] = useState('');
-  const [sex, setSex] = useState('female');
+  const [sex, setSex] = useState('Female');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -120,8 +120,8 @@ export function Auth() {
                   <div>
                     <FieldLabel>Пол</FieldLabel>
                     <Select value={sex} onChange={(e) => setSex(e.target.value)}>
-                      <option value="female">Женский</option>
-                      <option value="male">Мужской</option>
+                      <option value="Female">Женский</option>
+                      <option value="Male">Мужской</option>
                     </Select>
                   </div>
                 </div>
