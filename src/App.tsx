@@ -1,125 +1,61 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { DoctorLayout } from './layouts/DoctorLayout';
-import { OrgLayout } from './layouts/OrgLayout';
-import { PatientLayout } from './layouts/PatientLayout';
-import { Landing } from './pages/Landing';
-import { PatientAuth } from './pages/patient/PatientAuth';
-import { PatientDoctorDetail } from './pages/patient/PatientDoctorDetail';
-import { PatientDocuments } from './pages/patient/PatientDocuments';
-import { PatientDoctors } from './pages/patient/PatientDoctors';
-import { PatientHome } from './pages/patient/PatientHome';
-import { PatientNotifications } from './pages/patient/PatientNotifications';
-import { PatientProfile } from './pages/patient/PatientProfile';
-import { PatientSupport } from './pages/patient/PatientSupport';
-import { PatientTriage } from './pages/patient/PatientTriage';
-import { DoctorDesk } from './pages/doctor/DoctorDesk';
-import { DoctorPatients } from './pages/doctor/DoctorPatients';
-import { DoctorProfile } from './pages/doctor/DoctorProfile';
-import {
-  ClinicBilling,
-  ClinicDashboard,
-  ClinicDepartments,
-  ClinicDoctorsHr,
-  ClinicIntegrations,
-  ClinicPartners,
-  ClinicPatientsRegistry,
-  ClinicQuality,
-  ClinicSchedule,
-  ClinicSettings,
-} from './pages/org/clinicPages';
-import {
-  LabBilling,
-  LabCatalog,
-  LabDashboard,
-  LabFieldServices,
-  LabIntegrations,
-  LabLocations,
-  LabOrders,
-  LabQuality,
-  LabReferrals,
-  LabSettings,
-  LabStaff,
-} from './pages/org/labPages';
-import {
-  PharmacyAudit,
-  PharmacyBilling,
-  PharmacyDashboard,
-  PharmacyDelivery,
-  PharmacyIntegrations,
-  PharmacyInventory,
-  PharmacyLocations,
-  PharmacyOrders,
-  PharmacyPrescriptions,
-  PharmacySettings,
-  PharmacyStaff,
-} from './pages/org/pharmacyPages';
+import { AuthProvider } from '@/auth/AuthProvider';
+import { PatientLayout } from '@/layouts/PatientLayout';
+import { Auth } from '@/pages/patient/Auth';
+import { Home } from '@/pages/patient/Home';
+import { Triage } from '@/pages/patient/Triage';
+import { TriageResult } from '@/pages/patient/TriageResult';
+import { AiChat } from '@/pages/patient/AiChat';
+import { Documents } from '@/pages/patient/Documents';
+import { DocumentDetail } from '@/pages/patient/DocumentDetail';
+import { DocumentNew } from '@/pages/patient/DocumentNew';
+import { Doctors } from '@/pages/patient/Doctors';
+import { DoctorDetail } from '@/pages/patient/DoctorDetail';
+import { DoctorChat } from '@/pages/patient/DoctorChat';
+import { DoctorBook } from '@/pages/patient/DoctorBook';
+import { HouseCall } from '@/pages/patient/HouseCall';
+import { Treatment } from '@/pages/patient/Treatment';
+import { Labs } from '@/pages/patient/Labs';
+import { Notifications } from '@/pages/patient/Notifications';
+import { Support } from '@/pages/patient/Support';
+import { Profile } from '@/pages/patient/Profile';
+import { ProfileEdit } from '@/pages/patient/ProfileEdit';
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Landing />} />
+    <AuthProvider>
+      <Routes>
+        <Route path="/" element={<Navigate to="/patient/auth" replace />} />
+        <Route path="/patient/auth" element={<Auth />} />
 
-      <Route path="/patient/auth" element={<PatientAuth />} />
+        <Route path="/patient" element={<PatientLayout />}>
+          <Route index element={<Home />} />
+          <Route path="triage" element={<Triage />} />
+          <Route path="triage/result" element={<TriageResult />} />
+          <Route path="ai-chat" element={<AiChat />} />
 
-      <Route path="/patient" element={<PatientLayout />}>
-        <Route index element={<PatientHome />} />
-        <Route path="triage" element={<PatientTriage />} />
-        <Route path="documents" element={<PatientDocuments />} />
-        <Route path="doctors" element={<PatientDoctors />} />
-        <Route path="doctors/:id" element={<PatientDoctorDetail />} />
-        <Route path="notifications" element={<PatientNotifications />} />
-        <Route path="support" element={<PatientSupport />} />
-        <Route path="profile" element={<PatientProfile />} />
-      </Route>
+          <Route path="documents" element={<Documents />}>
+            <Route path=":id" element={<DocumentDetail />} />
+          </Route>
+          <Route path="documents/new" element={<DocumentNew />} />
 
-      <Route path="/doctor" element={<DoctorLayout />}>
-        <Route index element={<DoctorDesk />} />
-        <Route path="profile" element={<DoctorProfile />} />
-        <Route path="patients" element={<DoctorPatients />} />
-      </Route>
+          <Route path="doctors" element={<Doctors />} />
+          <Route path="doctors/:id" element={<DoctorDetail />} />
+          <Route path="doctors/:id/chat" element={<DoctorChat />} />
+          <Route path="doctors/:id/book" element={<DoctorBook />} />
 
-      <Route path="/org/clinic" element={<OrgLayout kind="clinic" />}>
-        <Route index element={<ClinicDashboard />} />
-        <Route path="departments" element={<ClinicDepartments />} />
-        <Route path="doctors" element={<ClinicDoctorsHr />} />
-        <Route path="schedule" element={<ClinicSchedule />} />
-        <Route path="patients" element={<ClinicPatientsRegistry />} />
-        <Route path="integrations" element={<ClinicIntegrations />} />
-        <Route path="billing" element={<ClinicBilling />} />
-        <Route path="quality" element={<ClinicQuality />} />
-        <Route path="settings" element={<ClinicSettings />} />
-        <Route path="partners" element={<ClinicPartners />} />
-      </Route>
+          <Route path="house-call" element={<HouseCall />} />
+          <Route path="treatment" element={<Treatment />} />
+          <Route path="labs" element={<Labs />} />
 
-      <Route path="/org/pharmacy" element={<OrgLayout kind="pharmacy" />}>
-        <Route index element={<PharmacyDashboard />} />
-        <Route path="orders" element={<PharmacyOrders />} />
-        <Route path="inventory" element={<PharmacyInventory />} />
-        <Route path="prescriptions" element={<PharmacyPrescriptions />} />
-        <Route path="locations" element={<PharmacyLocations />} />
-        <Route path="staff" element={<PharmacyStaff />} />
-        <Route path="integrations" element={<PharmacyIntegrations />} />
-        <Route path="billing" element={<PharmacyBilling />} />
-        <Route path="quality" element={<PharmacyAudit />} />
-        <Route path="settings" element={<PharmacySettings />} />
-        <Route path="delivery" element={<PharmacyDelivery />} />
-      </Route>
+          <Route path="notifications" element={<Notifications />} />
+          <Route path="support" element={<Support />} />
+          <Route path="profile" element={<Profile />} />
+          <Route path="profile/edit" element={<ProfileEdit />} />
+        </Route>
 
-      <Route path="/org/lab" element={<OrgLayout kind="lab" />}>
-        <Route index element={<LabDashboard />} />
-        <Route path="orders" element={<LabOrders />} />
-        <Route path="catalog" element={<LabCatalog />} />
-        <Route path="referrals" element={<LabReferrals />} />
-        <Route path="locations" element={<LabLocations />} />
-        <Route path="staff" element={<LabStaff />} />
-        <Route path="integrations" element={<LabIntegrations />} />
-        <Route path="billing" element={<LabBilling />} />
-        <Route path="quality" element={<LabQuality />} />
-        <Route path="settings" element={<LabSettings />} />
-        <Route path="field" element={<LabFieldServices />} />
-      </Route>
-
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AuthProvider>
   );
 }
