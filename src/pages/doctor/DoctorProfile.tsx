@@ -19,8 +19,21 @@ export function DoctorProfile() {
   );
 
   const doctorProfile = findDoctorProfile(profiles ?? []) as
-    | { specialization?: string; licenseNumber?: string; clinicName?: string; [key: string]: unknown }
+    | {
+        specialization?: string;
+        licenseNumber?: string;
+        clinicName?: string;
+        data?: {
+          specialization?: string;
+          certificateNumber?: string;
+          biography?: string;
+          rating?: number;
+        };
+        [key: string]: unknown;
+      }
     | undefined;
+
+  const profileData = doctorProfile?.data ?? {};
 
   const [specialization, setSpecialization] = useState('');
   const [licenseNumber, setLicenseNumber] = useState('');
@@ -77,7 +90,12 @@ export function DoctorProfile() {
                 <div>
                   <FieldLabel>Специальность</FieldLabel>
                   <Input
-                    value={specialization || (doctorProfile?.specialization as string) || ''}
+                    value={
+                      specialization ||
+                      (doctorProfile?.specialization as string) ||
+                      (profileData.specialization as string) ||
+                      ''
+                    }
                     onChange={(e) => setSpecialization(e.target.value)}
                     placeholder="Врач-терапевт участковый"
                   />
@@ -85,7 +103,12 @@ export function DoctorProfile() {
                 <div>
                   <FieldLabel>Сертификат специалиста</FieldLabel>
                   <Input
-                    value={licenseNumber || (doctorProfile?.licenseNumber as string) || ''}
+                    value={
+                      licenseNumber ||
+                      (doctorProfile?.licenseNumber as string) ||
+                      (profileData.certificateNumber as string) ||
+                      ''
+                    }
                     onChange={(e) => setLicenseNumber(e.target.value)}
                     placeholder="№778291 / до 2030"
                   />
@@ -99,11 +122,17 @@ export function DoctorProfile() {
                 <div>
                   <FieldLabel>Клиника</FieldLabel>
                   <Input
-                    value={clinic}
+                    value={clinic || (doctorProfile?.clinicName as string) || ''}
                     onChange={(e) => setClinic(e.target.value)}
                     placeholder="ГК №4, ул. Свободы"
                   />
                 </div>
+                {(profileData.biography as string | undefined) && (
+                  <div>
+                    <FieldLabel>О враче</FieldLabel>
+                    <p className="text-[14px] text-text-muted">{profileData.biography as string}</p>
+                  </div>
+                )}
                 <div>
                   <FieldLabel>Рабочее время по умолчанию</FieldLabel>
                   <Textarea value={hours} onChange={(e) => setHours(e.target.value)} rows={3} />

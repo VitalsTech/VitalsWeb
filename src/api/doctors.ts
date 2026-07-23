@@ -1,9 +1,11 @@
 import { apiRequest } from './http';
+import { formatUserName, type UserDto } from './users';
 
 export interface DoctorDto {
   id?: string;
   doctorId?: string;
   publicId?: string;
+  fullName?: string;
   firstName?: string;
   secondName?: string;
   surename?: string;
@@ -14,9 +16,11 @@ export interface DoctorDto {
   clinic?: string;
   experienceYears?: number;
   bio?: string;
+  biography?: string;
   description?: string;
   schedule?: string;
   onlineAvailable?: boolean;
+  rating?: number;
   tag?: string;
   [key: string]: unknown;
 }
@@ -33,9 +37,12 @@ export interface DoctorListResponse {
 export interface ScheduleSlotDto {
   start?: string;
   startTime?: string;
+  startsAt?: string;
   end?: string;
   endTime?: string;
+  endsAt?: string;
   available?: boolean;
+  isAvailable?: boolean;
   [key: string]: unknown;
 }
 
@@ -60,15 +67,52 @@ export const doctorsApi = {
  * be a bare array or wrapped in a paged object. Normalize to an array. */
 export function normalizeDoctorList(response: DoctorDto[] | DoctorListResponse | null | undefined): DoctorDto[] {
   if (!response) return [];
-  if (Array.isArray(response)) return response;
-  return response.items ?? response.results ?? response.data ?? [];
+  const list = Array.isArray(response) ? response : (response.items ?? response.results ?? response.data ?? []);
+  return list.map(normalizeDoctorCard);
+}
+
+export function normalizeDoctorCard(doctor: DoctorDto): DoctorDto {
+  const profiles = (doctor.profiles as Array<{ profileType?: string; data?: Record<string, unknown> }> | undefined) ?? [];
+  const doctorProfile = profiles.find((p) => (p.profileType ?? '').toLowerCase().includes('doctor'));
+  const profileData = doctorProfile?.data ?? {};
+
+  return {
+    ...doctor,
+    doctorId: doctor.doctorId ?? doctor.publicId ?? doctor.id,
+    publicId: doctor.publicId ?? doctor.doctorId ?? doctor.id,
+    name: doctor.fullName ?? doctor.name ?? formatDoctorName(doctor),
+    specialization:
+      doctor.specialization ??
+      doctor.specialty ??
+      (profileData.specialization as string | undefined),
+    bio:
+      doctor.bio ??
+      doctor.biography ??
+      doctor.description ??
+      (profileData.biography as string | undefined),
+    rating: doctor.rating ?? (profileData.rating as number | undefined),
+  };
+}
+
+/** Maps GET /users/{publicId} response to doctor card fields. */
+export function normalizeDoctorFromUser(
+  user: (UserDto & { profiles?: Array<{ profileType?: string; data?: Record<string, unknown> }> }) | null | undefined,
+): DoctorDto | null {
+  if (!user) return null;
+  return normalizeDoctorCard({
+    ...user,
+    publicId: user.publicId,
+    doctorId: user.publicId,
+    name: formatUserName(user, 'Врач Vitals'),
+  });
 }
 
 export function getDoctorId(doctor: DoctorDto): string {
-  return doctor.id ?? doctor.doctorId ?? doctor.publicId ?? '';
+  return doctor.doctorId ?? doctor.id ?? doctor.publicId ?? '';
 }
 
 export function formatDoctorName(doctor: DoctorDto): string {
+  if (doctor.fullName) return doctor.fullName;
   if (doctor.name) return doctor.name;
   const parts = [doctor.surename, doctor.firstName, doctor.secondName].filter(Boolean);
   return parts.length > 0 ? parts.join(' ') : 'Врач Vitals';

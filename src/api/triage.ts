@@ -24,11 +24,21 @@ export interface TriageSessionDto {
   status?: string;
   urgency?: string;
   urgencyLevel?: number;
+  latestUrgencyLevel?: number;
   recommendedSpecialization?: string;
   recommendation?: string;
   recommendationText?: string;
   canBeRemote?: boolean;
   messages?: TriageMessageDto[];
+  latestAssessment?: {
+    urgencyLevel?: number;
+    llmResult?: {
+      urgencyLevel?: number;
+      recommendedAction?: string;
+      nextQuestion?: string;
+    };
+    assistantReply?: string;
+  };
   [key: string]: unknown;
 }
 
@@ -47,8 +57,52 @@ export const triageApi = {
       { method: 'POST', body: { content } },
     );
   },
+
+  completeSession(sessionId: string) {
+    return apiRequest<TriageSessionDto>(`/api/v1/triage/sessions/${sessionId}/complete`, {
+      method: 'POST',
+    });
+  },
 };
 
 export function getSessionId(session: TriageSessionDto | null | undefined): string | undefined {
   return session?.id ?? session?.sessionId;
+}
+
+/** Maps backend triage response to frontend-friendly fields. */
+export function normalizeTriageSession(session: TriageSessionDto | null | undefined): TriageSessionDto | null {
+  if (!session) return null;
+
+  const urgencyLevel =
+    session.urgencyLevel ??
+    session.latestUrgencyLevel ??
+    session.latestAssessment?.urgencyLevel ??
+    session.latestAssessment?.llmResult?.urgencyLevel;
+
+  const recommendation =
+    session.recommendation ??
+    session.recommendationText ??
+    session.latestAssessment?.llmResult?.recommendedAction ??
+    session.latestAssessment?.assistantReply;
+
+  const urgency =
+    session.urgency ??
+    (urgencyLevel != null
+      ? urgencyLevel >= 5
+        ? 'emergency'
+        : urgencyLevel >= 4
+          ? 'urgent'
+          : 'routine'
+      : undefined);
+
+  return {
+    ...session,
+    id: getSessionId(session),
+    urgencyLevel,
+    urgency,
+    recommendation,
+    recommendationText: recommendation,
+    recommendedSpecialization: session.recommendedSpecialization ?? 'Терапевт',
+    canBeRemote: session.canBeRemote ?? (urgencyLevel == null || urgencyLevel <= 3),
+  };
 }

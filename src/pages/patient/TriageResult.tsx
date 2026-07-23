@@ -4,6 +4,7 @@ import { Button, ButtonLink } from '@/components/ui/Button';
 import { AsyncState } from '@/components/AsyncState';
 import { useAuth } from '@/auth/AuthProvider';
 import { useTriageSession } from './useTriageSession';
+import { normalizeTriageSession } from '@/api/triage';
 
 const URGENCY_LABELS: Record<string, string> = {
   emergency: 'Срочно',
@@ -13,11 +14,12 @@ const URGENCY_LABELS: Record<string, string> = {
 
 export function TriageResult() {
   const { patientId } = useAuth();
-  const { session, loading, error, refresh, sessionId } = useTriageSession(patientId);
+  const { session, loading, error, refresh, sessionId, complete, sending } = useTriageSession(patientId);
 
-  const urgencyKey = (session?.urgency ?? '').toLowerCase();
-  const urgencyLabel = URGENCY_LABELS[urgencyKey] ?? session?.urgency ?? 'Оценивается';
-  const recommendation = session?.recommendation ?? session?.recommendationText;
+  const normalized = normalizeTriageSession(session);
+  const urgencyKey = (normalized?.urgency ?? '').toLowerCase();
+  const urgencyLabel = URGENCY_LABELS[urgencyKey] ?? normalized?.urgency ?? 'Оценивается';
+  const recommendation = normalized?.recommendation ?? normalized?.recommendationText;
 
   return (
     <div>
@@ -48,8 +50,8 @@ export function TriageResult() {
                     Срочность: <span className="text-warning">{urgencyLabel}</span>
                   </p>
                   <p className="mt-2 text-[13px] text-text-muted">
-                    {session?.urgencyLevel != null
-                      ? `Уровень срочности: ${session.urgencyLevel}`
+                    {normalized?.urgencyLevel != null
+                      ? `Уровень срочности: ${normalized.urgencyLevel}`
                       : 'Итоговая оценка появится после нескольких сообщений в чате.'}
                   </p>
                 </Card>
@@ -57,7 +59,7 @@ export function TriageResult() {
                 <Card className="p-6">
                   <h3 className="text-[16px] font-semibold text-text">Можно удалённо</h3>
                   <p className="mt-3 text-[13px] text-text-muted">
-                    {session?.canBeRemote === false
+                    {normalized?.canBeRemote === false
                       ? 'Нет — рекомендован очный визит.'
                       : 'Да — первичная консультация возможна онлайн. Очный визит — при ухудшении.'}
                   </p>
@@ -73,9 +75,9 @@ export function TriageResult() {
                     Рекомендация ещё формируется — продолжите диалог в ИИ-триаже.
                   </p>
                 )}
-                {session?.recommendedSpecialization && (
+                {normalized?.recommendedSpecialization && (
                   <p className="mt-5 text-[13px] text-text-muted">
-                    Рекомендованная специализация: {session.recommendedSpecialization}
+                    Рекомендованная специализация: {normalized.recommendedSpecialization}
                   </p>
                 )}
               </Card>
@@ -85,6 +87,19 @@ export function TriageResult() {
               <ButtonLink to="/patient/doctors" size="lg">
                 Начать маршрут — записаться к врачу
               </ButtonLink>
+              <ButtonLink to="/patient/home" variant="secondary" size="lg">
+                На «Мой путь»
+              </ButtonLink>
+              {!recommendation && sessionId && (
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  disabled={sending}
+                  onClick={() => void complete().then(() => refresh())}
+                >
+                  {sending ? 'Завершение…' : 'Завершить триаж (mock)'}
+                </Button>
+              )}
               <Button variant="secondary" size="lg" onClick={refresh}>
                 Обновить статус
               </Button>

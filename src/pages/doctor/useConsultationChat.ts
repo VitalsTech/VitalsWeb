@@ -1,12 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { consultationsApi, getConsultationId, normalizeMessages } from '@/api/consultations';
 import type { ConsultationMessageDto } from '@/api/consultations';
 import type { ChatMessage } from '@/types/chat';
 import { nextId } from '@/lib/id';
+import { getPublicId } from '@/api/tokenStore';
 
-// Same key shape the patient-side `useDoctorChat` hook uses, so a chat
-// session created from either side of a patient↔doctor pair is reused when
-// running both roles in the same browser (e.g. during local testing).
 function storageKey(patientId: string, doctorId: string) {
   return `vitals.chatConsultationId.${patientId}.${doctorId}`;
 }
@@ -14,13 +12,21 @@ function storageKey(patientId: string, doctorId: string) {
 function toChatMessage(dto: ConsultationMessageDto, fallbackId: string): ChatMessage {
   const role = String(dto.senderRole ?? dto.role ?? 'user').toLowerCase();
   const from: ChatMessage['from'] = role.includes('doctor') ? 'doctor' : 'user';
-  return { id: String(dto.id ?? fallbackId), from, text: String(dto.content ?? '') };
+  const id = String(dto.id ?? dto.messageId ?? fallbackId);
+  return { id, from, text: String(dto.content ?? '') };
 }
 
-/** Creates (or reuses) a chat-type consultation session between the current
- * doctor and a given patient. */
-export function useConsultationChat(doctorId: string | null, patientId: string | undefined) {
-  const key = doctorId && patientId ? storageKey(patientId, doctorId) : null;
+/**
+ * Doctor chat with a patient.
+ * Always uses doctor User.PublicId for consultation.DoctorId so it matches the
+ * patient-side session (patient opens chat via /doctors/{publicId}).
+ */
+export function useConsultationChat(doctorProfileId: string | null, patientId: string | undefined) {
+  const doctorPublicId = getPublicId();
+  const doctorIdForSession = doctorPublicId ?? doctorProfileId;
+  const key =
+    doctorIdForSession && patientId ? storageKey(patientId, doctorIdForSession) : null;
+
   const [sessionId, setSessionId] = useState<string | null>(() =>
     key ? window.localStorage.getItem(key) : null,
   );
@@ -28,6 +34,8 @@ export function useConsultationChat(doctorId: string | null, patientId: string |
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sessionRef = useRef<string | null>(sessionId);
+  sessionRef.current = sessionId;
 
   const loadMessages = useCallback(async (id: string) => {
     const response = await consultationsApi.getMessages(id, 0);
@@ -36,17 +44,33 @@ export function useConsultationChat(doctorId: string | null, patientId: string |
   }, []);
 
   useEffect(() => {
-    if (!doctorId || !patientId || !key) return;
-    const currentDoctorId = doctorId;
+    if (!doctorIdForSession || !patientId || !key) return;
+    const currentDoctorId = doctorIdForSession;
     const currentPatientId = patientId;
     const storageKeyValue = key;
+    const profileId = doctorProfileId;
     let cancelled = false;
 
     async function init() {
       setLoading(true);
       setError(null);
       try {
-        let id = sessionId;
+        let id = sessionRef.current;
+
+        // Resolve shared session: publicId first (canonical), then profileId (legacy).
+        for (const candidate of [currentDoctorId, profileId].filter(Boolean) as string[]) {
+          try {
+            const active = await consultationsApi.getActive(currentPatientId, candidate);
+            const activeId = getConsultationId(active);
+            if (activeId) {
+              id = activeId;
+              break;
+            }
+          } catch {
+            /* 404 */
+          }
+        }
+
         if (!id) {
           const created = await consultationsApi.create({
             patientId: currentPatientId,
@@ -54,12 +78,11 @@ export function useConsultationChat(doctorId: string | null, patientId: string |
             consultationType: 'chat',
           });
           id = getConsultationId(created) ?? null;
-          if (id) {
-            window.localStorage.setItem(storageKeyValue, id);
-            if (!cancelled) setSessionId(id);
-          }
         }
+
         if (id) {
+          window.localStorage.setItem(storageKeyValue, id);
+          if (!cancelled) setSessionId(id);
           await consultationsApi.join(id, 'doctor').catch(() => {});
           await loadMessages(id);
         }
@@ -74,8 +97,15 @@ export function useConsultationChat(doctorId: string | null, patientId: string |
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doctorId, patientId, key]);
+  }, [doctorIdForSession, doctorProfileId, patientId, key, loadMessages]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    const timer = window.setInterval(() => {
+      void loadMessages(sessionId).catch(() => {});
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [sessionId, loadMessages]);
 
   const send = useCallback(
     async (text: string) => {

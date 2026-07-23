@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { triageApi, getSessionId } from '@/api/triage';
+import { triageApi, getSessionId, normalizeTriageSession } from '@/api/triage';
 import type { TriageMessageDto, TriageSessionDto } from '@/api/triage';
 import type { ChatMessage } from '@/types/chat';
 import { nextId } from '@/lib/id';
@@ -30,9 +30,10 @@ export function useTriageSession(patientId: string | null) {
   const [error, setError] = useState<string | null>(null);
 
   const applySession = useCallback((next: TriageSessionDto) => {
-    setSession(next);
-    if (Array.isArray(next.messages) && next.messages.length > 0) {
-      setMessages(next.messages.map((m, i) => toChatMessage(m, `s-${i}`)));
+    const normalized = normalizeTriageSession(next) ?? next;
+    setSession(normalized);
+    if (Array.isArray(normalized.messages) && normalized.messages.length > 0) {
+      setMessages(normalized.messages.map((m, i) => toChatMessage(m, `s-${i}`)));
     }
   }, []);
 
@@ -97,8 +98,28 @@ export function useTriageSession(patientId: string | null) {
   );
 
   const hasRouting = Boolean(
-    session?.urgency || session?.urgencyLevel || session?.recommendation || session?.recommendationText,
+    session?.status?.toLowerCase() === 'completed' ||
+      session?.urgency ||
+      session?.urgencyLevel ||
+      session?.recommendation ||
+      session?.recommendationText,
   );
 
-  return { sessionId, session, messages, loading, sending, error, send, refresh, hasRouting };
+  const complete = useCallback(async () => {
+    if (!sessionId) return null;
+    setSending(true);
+    setError(null);
+    try {
+      const completed = await triageApi.completeSession(sessionId);
+      applySession(completed);
+      return completed;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось завершить триаж.');
+      return null;
+    } finally {
+      setSending(false);
+    }
+  }, [sessionId, applySession]);
+
+  return { sessionId, session, messages, loading, sending, error, send, refresh, complete, hasRouting };
 }

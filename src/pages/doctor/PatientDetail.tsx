@@ -8,28 +8,41 @@ import { FieldLabel, Input, Textarea } from '@/components/ui/Input';
 import { AsyncState } from '@/components/AsyncState';
 import { useAuth } from '@/auth/AuthProvider';
 import { useAsyncData } from '@/lib/useAsyncData';
-import { medicalRecordsApi, normalizeHistory, parseEventPayload } from '@/api/medicalRecords';
+import { medicalRecordsApi, normalizeHistory, extractHistoryState, parseEventPayload } from '@/api/medicalRecords';
 import { prescriptionsApi, normalizePrescriptions, getPrescriptionId } from '@/api/prescriptions';
 import { getContact, upsertContact } from './contacts';
 
 type Tab = 'overview' | 'diagnoses' | 'prescriptions';
 
-type DiagnosisPayload = { code?: string; title?: string; status?: 'active' | 'closed' };
+type DiagnosisPayload = { code?: string; title?: string; icd10Code?: string; description?: string; status?: 'active' | 'closed' };
 type DocumentPayload = { title?: string; docType?: string };
 
-function dedupeDiagnoses(
+function diagnosesFromHistory(
   events: ReturnType<typeof normalizeHistory>,
+  stateDiagnoses: Array<{ icd10Code?: string; description?: string; recordedAt?: string; sourceEventId?: string }>,
 ): Array<{ id: string; code: string; title: string; status: string; occurredAt?: string }> {
+  if (stateDiagnoses.length > 0) {
+    return stateDiagnoses.map((d) => ({
+      id: d.sourceEventId ?? d.icd10Code ?? String(Math.random()),
+      code: d.icd10Code ?? '—',
+      title: d.description ?? 'Диагноз',
+      status: 'active',
+      occurredAt: d.recordedAt,
+    }));
+  }
+
   const byCode = new Map<string, { id: string; code: string; title: string; status: string; occurredAt?: string }>();
   for (const event of events) {
+    if (event.eventType !== 'diagnosis' && event.eventType !== 'DiagnosisConfirmed') continue;
     const payload = parseEventPayload<DiagnosisPayload>(event) ?? {};
-    const code = payload.code ?? 'без кода';
+    const code = payload.icd10Code ?? payload.code ?? 'без кода';
+    const title = payload.description ?? payload.title ?? 'Диагноз';
     const existing = byCode.get(code);
     if (!existing || (event.occurredAt ?? '') >= (existing.occurredAt ?? '')) {
       byCode.set(code, {
         id: String(event.id ?? code),
         code,
-        title: payload.title ?? 'Диагноз',
+        title,
         status: payload.status ?? 'active',
         occurredAt: event.occurredAt,
       });
@@ -62,10 +75,12 @@ export function PatientDetail() {
   );
 
   const allEvents = normalizeHistory(history.data);
+  const historyState = extractHistoryState(history.data);
+  const stateDiagnoses = historyState?.activeDiagnoses ?? state.data?.activeDiagnoses ?? [];
   const documents = allEvents
-    .filter((e) => e.eventType === 'document')
+    .filter((e) => e.eventType === 'document' || e.eventType === 'DocumentUploaded')
     .slice(0, 3);
-  const diagnoses = dedupeDiagnoses(allEvents.filter((e) => e.eventType === 'diagnosis'));
+  const diagnoses = diagnosesFromHistory(allEvents, stateDiagnoses);
   const prescriptionList = normalizePrescriptions(prescriptions.data);
 
   async function appendReferral() {

@@ -9,12 +9,21 @@ export interface AppendEventPayload {
 
 export interface MedicalRecordEventDto {
   id?: string;
+  eventId?: string;
   eventType?: string;
   sourceService?: string;
   payloadJson?: string;
+  payload?: unknown;
   occurredAt?: string;
   createdAt?: string;
   [key: string]: unknown;
+}
+
+export interface DiagnosisDto {
+  icd10Code?: string;
+  description?: string;
+  recordedAt?: string;
+  sourceEventId?: string;
 }
 
 export interface PatientStateDto {
@@ -23,8 +32,16 @@ export interface PatientStateDto {
   allergies?: string;
   bloodType?: string;
   activeConditions?: string[];
+  activeDiagnoses?: DiagnosisDto[];
   lastVisitAt?: string;
   [key: string]: unknown;
+}
+
+export interface PatientHistoryDto {
+  patientId?: string;
+  currentState?: PatientStateDto;
+  events?: MedicalRecordEventDto[];
+  items?: MedicalRecordEventDto[];
 }
 
 export const medicalRecordsApi = {
@@ -39,7 +56,7 @@ export const medicalRecordsApi = {
     patientId: string,
     params: { from?: string; to?: string; eventTypes?: string } = {},
   ) {
-    return apiRequest<MedicalRecordEventDto[] | { items?: MedicalRecordEventDto[] }>(
+    return apiRequest<MedicalRecordEventDto[] | PatientHistoryDto>(
       `/api/v1/medical-records/patients/${patientId}/history`,
       { query: params },
     );
@@ -67,20 +84,43 @@ export const medicalRecordsApi = {
   },
 };
 
+function mapHistoryEvent(event: MedicalRecordEventDto): MedicalRecordEventDto {
+  const payload = event.payload ?? event.payloadJson;
+  return {
+    ...event,
+    id: String(event.id ?? event.eventId ?? ''),
+    payloadJson:
+      typeof payload === 'string'
+        ? payload
+        : payload != null
+          ? JSON.stringify(payload)
+          : event.payloadJson,
+  };
+}
+
 export function normalizeHistory(
-  response: MedicalRecordEventDto[] | { items?: MedicalRecordEventDto[] } | null | undefined,
+  response: MedicalRecordEventDto[] | PatientHistoryDto | null | undefined,
 ): MedicalRecordEventDto[] {
   if (!response) return [];
-  if (Array.isArray(response)) return response;
-  return response.items ?? [];
+  if (Array.isArray(response)) return response.map(mapHistoryEvent);
+  const events = response.events ?? response.items ?? [];
+  return events.map(mapHistoryEvent);
+}
+
+export function extractHistoryState(
+  response: MedicalRecordEventDto[] | PatientHistoryDto | null | undefined,
+): PatientStateDto | null {
+  if (!response || Array.isArray(response)) return null;
+  return response.currentState ?? null;
 }
 
 export function parseEventPayload<T = Record<string, unknown>>(
   event: MedicalRecordEventDto,
 ): T | null {
-  if (!event.payloadJson) return null;
+  const raw = event.payloadJson ?? event.payload;
+  if (!raw) return null;
   try {
-    return JSON.parse(event.payloadJson) as T;
+    return (typeof raw === 'string' ? JSON.parse(raw) : raw) as T;
   } catch {
     return null;
   }

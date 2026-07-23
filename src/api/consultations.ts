@@ -27,6 +27,7 @@ export interface ConsultationDto {
 
 export interface ConsultationMessageDto {
   id?: string;
+  messageId?: string;
   sequence?: number;
   sequenceNumber?: number;
   senderRole?: string;
@@ -46,6 +47,12 @@ export const consultationsApi = {
 
   get(sessionId: string) {
     return apiRequest<ConsultationDto>(`/api/v1/consultations/${sessionId}`);
+  },
+
+  getActive(patientId: string, doctorId: string) {
+    return apiRequest<ConsultationDto>('/api/v1/consultations/active', {
+      query: { patientId, doctorId },
+    });
   },
 
   join(sessionId: string, role?: string) {

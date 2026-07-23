@@ -12,7 +12,7 @@ const QUICK_PHRASES = ['Стало хуже', 'Нужна консультаци
 
 export function Triage() {
   const { patientId } = useAuth();
-  const { messages, sending, error, send, hasRouting } = useTriageSession(patientId);
+  const { messages, sending, error, send, hasRouting, complete, sessionId } = useTriageSession(patientId);
   const [draft, setDraft] = useState('');
   const navigate = useNavigate();
 
@@ -82,6 +82,15 @@ export function Triage() {
               onClick={() => navigate('/patient/triage/result')}
             >
               Показать результат триажа →
+            </Button>
+          )}
+          {sessionId && !hasRouting && (
+            <Button
+              variant="secondary"
+              disabled={sending}
+              onClick={() => void complete().then((s) => s && navigate('/patient/triage/result'))}
+            >
+              {sending ? 'Завершение…' : 'Завершить триаж (mock)'}
             </Button>
           )}
         </div>

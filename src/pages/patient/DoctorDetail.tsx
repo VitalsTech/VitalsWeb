@@ -4,15 +4,16 @@ import { Card } from '@/components/ui/Card';
 import { ButtonLink } from '@/components/ui/Button';
 import { AsyncState } from '@/components/AsyncState';
 import { useAsyncData } from '@/lib/useAsyncData';
-import { doctorsApi, formatDoctorName, formatDoctorSpecialty } from '@/api/doctors';
+import { doctorsApi, normalizeDoctorFromUser, formatDoctorName, formatDoctorSpecialty } from '@/api/doctors';
 
 export function DoctorDetail() {
   const { id } = useParams();
 
-  const { data: doctor, loading, error, reload } = useAsyncData(
+  const { data: rawDoctor, loading, error, reload } = useAsyncData(
     () => (id ? doctorsApi.get(id) : Promise.reject(new Error('Не указан врач'))),
     [id],
   );
+  const doctor = normalizeDoctorFromUser(rawDoctor as Parameters<typeof normalizeDoctorFromUser>[0]);
 
   return (
     <div>

@@ -50,7 +50,22 @@ export const notificationsApi = {
 export function normalizeNotifications(
   response: NotificationDto[] | { items?: NotificationDto[] } | null | undefined,
 ): NotificationDto[] {
-  if (!response) return [];
-  if (Array.isArray(response)) return response;
-  return response.items ?? [];
+  const raw = !response ? [] : Array.isArray(response) ? response : (response.items ?? []);
+  return raw.map((item) => {
+    const title =
+      item.title ??
+      (typeof item.subject === 'string' ? item.subject : undefined) ??
+      (typeof item.eventType === 'string' ? String(item.eventType) : undefined);
+    const message =
+      item.message ??
+      (typeof item.body === 'string' ? item.body : undefined) ??
+      '';
+    return {
+      ...item,
+      id: item.id ?? (typeof item.deliveryId === 'string' ? item.deliveryId : undefined),
+      title,
+      message,
+      body: item.body ?? message,
+    };
+  });
 }

@@ -79,7 +79,8 @@ export function Notifications() {
                     {item.title ?? item.message ?? 'Уведомление'}
                   </p>
                   <p className="mt-1 text-[13px] text-text-muted">
-                    {item.message && item.title ? item.message : ''} {formatDate(item)}
+                    {item.message && item.message !== item.title ? item.message : ''}{' '}
+                    {formatDate(item)}
                   </p>
                 </div>
                 {item.isRead === false || item.read === false ? (
