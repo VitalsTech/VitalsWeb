@@ -7,19 +7,21 @@ import { useAsyncData } from '@/lib/useAsyncData';
 import { notificationsApi, normalizeNotifications } from '@/api/notifications';
 import type { NotificationDto } from '@/api/notifications';
 
-type Category = 'all' | 'booking' | 'triage' | 'message' | 'schedule';
+type Category = 'all' | 'booking' | 'triage' | 'mood' | 'message' | 'schedule';
 
 const CATEGORY_TABS: [Category, string][] = [
   ['all', 'Все'],
   ['booking', 'Записи'],
   ['triage', 'Триаж'],
+  ['mood', 'Самочувствие'],
   ['message', 'Сообщения'],
   ['schedule', 'Расписание'],
 ];
 
 const CATEGORY_KEYWORDS: Record<Exclude<Category, 'all'>, string[]> = {
   booking: ['запис', 'приём', 'консультац'],
-  triage: ['триаж', 'срочн'],
+  triage: ['триаж', 'срочн', 'маршрут'],
+  mood: ['самочувств', 'отметк', 'лучше', 'хуже', 'без изменений', 'mood'],
   message: ['сообщен', 'чат'],
   schedule: ['расписан', 'перенес', 'вызов'],
 };
@@ -47,7 +49,7 @@ export function Notifications() {
     <div>
       <PageHeader
         title="Уведомления"
-        description="Записи пациентов, триаж, сообщения и изменения расписания."
+        description="Записи пациентов, триаж, самочувствие, сообщения и изменения расписания."
       />
 
       <div className="mb-6 flex flex-wrap gap-2">

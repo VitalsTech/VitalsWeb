@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -12,9 +12,18 @@ const QUICK_PHRASES = ['Стало хуже', 'Нужна консультаци
 
 export function Triage() {
   const { patientId } = useAuth();
-  const { messages, sending, error, send, hasRouting, complete, sessionId } = useTriageSession(patientId);
+  const { messages, sending, error, send, hasRouting, complete, sessionId, startNew } =
+    useTriageSession(patientId);
   const [draft, setDraft] = useState('');
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      startNew();
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams, startNew]);
 
   async function submit(text: string) {
     if (!text.trim()) return;
@@ -27,14 +36,28 @@ export function Triage() {
       <PageHeader
         title="ИИ-триаж"
         description="Опишите симптомы — система оценит срочность и предложит маршрут."
+        actions={
+          sessionId ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                startNew();
+                setDraft('');
+              }}
+            >
+              Новый триаж
+            </Button>
+          ) : undefined
+        }
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
         <Card className="flex max-h-[420px] flex-col gap-3 overflow-y-auto p-6 scrollbar-thin">
           {messages.length === 0 ? (
             <p className="text-[13px] text-text-muted">
-              Опишите, что вас беспокоит, или выберите одну из быстрых фраз — это начнёт сессию
-              ИИ-триажа.
+              Опишите, что вас беспокоит, или выберите одну из быстрых фраз — это начнёт{' '}
+              {sessionId ? 'продолжение' : 'новую сессию'} ИИ-триажа.
             </p>
           ) : (
             messages.map((m) => <ChatBubble key={m.id} message={m} />)
@@ -72,8 +95,7 @@ export function Triage() {
             {sending ? 'Отправка…' : 'Отправить'}
           </Button>
           <p className="text-[12px] text-text-muted">
-            После диалога система покажет маршрут: срочность, врач, анализы → экран «Результат
-            триажа»
+            После диалога завершите триаж — маршрут появится в истории на «Мой путь».
           </p>
           {hasRouting && (
             <Button
@@ -88,7 +110,7 @@ export function Triage() {
             <Button
               variant="secondary"
               disabled={sending}
-              onClick={() => void complete().then((s) => s && navigate('/patient/triage/result'))}
+              onClick={() => void complete().then((s) => s && navigate('/patient'))}
             >
               {sending ? 'Завершение…' : 'Завершить триаж (mock)'}
             </Button>

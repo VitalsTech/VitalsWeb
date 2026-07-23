@@ -1,21 +1,25 @@
+import { useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { ButtonLink } from '@/components/ui/Button';
 import { AsyncState } from '@/components/AsyncState';
+import {
+  PrescriptionDetailModal,
+  PrescriptionStatusBadge,
+} from '@/components/PrescriptionDetailModal';
 import { useAuth } from '@/auth/AuthProvider';
 import { useAsyncData } from '@/lib/useAsyncData';
-import { prescriptionsApi, normalizePrescriptions, getPrescriptionId } from '@/api/prescriptions';
-
-const STATUS_LABELS: Record<string, string> = {
-  draft: 'Оформляется врачом',
-  signed: 'Подписан',
-  sent_to_pharmacy: 'Отправлен в аптеку',
-  dispensed: 'Выдан',
-  cancelled: 'Отменён',
-};
+import {
+  prescriptionsApi,
+  normalizePrescriptions,
+  getPrescriptionId,
+  canShowPrescriptionQr,
+} from '@/api/prescriptions';
+import type { PrescriptionDto } from '@/api/prescriptions';
 
 export function Labs() {
   const { patientId } = useAuth();
+  const [selected, setSelected] = useState<PrescriptionDto | null>(null);
 
   const { data, loading, error, reload } = useAsyncData(
     () => (patientId ? prescriptionsApi.listForPatient(patientId) : Promise.resolve(null)),
@@ -44,24 +48,41 @@ export function Labs() {
           </Card>
 
           <Card className="p-6">
-            <h3 className="text-[16px] font-semibold text-text">Рецепты</h3>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-[16px] font-semibold text-text">Рецепты</h3>
+                <p className="mt-1 text-[13px] text-text-muted">Нажмите на рецепт, чтобы открыть детали и QR</p>
+              </div>
+            </div>
             {prescriptions.length === 0 ? (
-              <p className="mt-2 text-[14px] text-text-muted">Активных рецептов пока нет.</p>
+              <p className="mt-4 text-[14px] text-text-muted">Активных рецептов пока нет.</p>
             ) : (
               <div className="mt-5 flex flex-col gap-3">
-                {prescriptions.map((p) => (
-                  <div
-                    key={getPrescriptionId(p)}
-                    className="flex items-center justify-between rounded-md border border-border px-4 py-4"
-                  >
-                    <span className="text-[14px] font-semibold text-text">
-                      {p.diagnosisForPrescription ?? 'Рецепт'}
-                    </span>
-                    <span className="text-[14px] text-text-muted">
-                      {STATUS_LABELS[(p.status ?? '').toLowerCase()] ?? p.status ?? '—'}
-                    </span>
-                  </div>
-                ))}
+                {prescriptions.map((p) => {
+                  const med = p.medications?.[0];
+                  const scheme = [med?.dosage, med?.frequency].filter(Boolean).join(' · ');
+                  return (
+                    <button
+                      key={getPrescriptionId(p)}
+                      type="button"
+                      onClick={() => setSelected(p)}
+                      className="flex w-full items-start justify-between gap-4 rounded-md border border-border px-4 py-4 text-left transition-colors hover:border-accent hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[14px] font-semibold text-text">
+                          {med?.tradeName ?? p.diagnosisForPrescription ?? 'Рецепт'}
+                        </p>
+                        {scheme ? (
+                          <p className="mt-1 text-[13px] text-text-muted">{scheme}</p>
+                        ) : null}
+                        {canShowPrescriptionQr(p.status) ? (
+                          <p className="mt-2 text-[12px] font-semibold text-primary">Есть QR для аптеки</p>
+                        ) : null}
+                      </div>
+                      <PrescriptionStatusBadge status={p.status} />
+                    </button>
+                  );
+                })}
               </div>
             )}
           </Card>
@@ -78,6 +99,15 @@ export function Labs() {
           Вернуться к маршруту
         </ButtonLink>
       </Card>
+
+      {selected && (
+        <PrescriptionDetailModal
+          prescription={selected}
+          variant="patient"
+          onClose={() => setSelected(null)}
+          onUpdated={reload}
+        />
+      )}
     </div>
   );
 }

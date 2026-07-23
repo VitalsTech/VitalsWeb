@@ -87,7 +87,7 @@ export function TriageResult() {
               <ButtonLink to="/patient/doctors" size="lg">
                 Начать маршрут — записаться к врачу
               </ButtonLink>
-              <ButtonLink to="/patient/home" variant="secondary" size="lg">
+              <ButtonLink to="/patient" variant="secondary" size="lg">
                 На «Мой путь»
               </ButtonLink>
               {!recommendation && sessionId && (

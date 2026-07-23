@@ -32,7 +32,12 @@ export const authApi = {
   async login(payload: LoginPayload, role: Role = 'patient'): Promise<Session> {
     const data = await apiRequest<unknown>('/api/v1/auth/login', {
       method: 'POST',
-      body: { ...payload, deviceFingerprint: getDeviceFingerprint() },
+      body: {
+        ...payload,
+        deviceFingerprint: getDeviceFingerprint(),
+        // Activates Doctor/Patient profile so JWT roles match the portal being used.
+        preferredProfileType: role === 'doctor' ? 'Doctor' : 'Patient',
+      },
       skipAuth: true,
     });
     const session = extractSession(data);

@@ -121,5 +121,26 @@ export function useTriageSession(patientId: string | null) {
     }
   }, [sessionId, applySession]);
 
-  return { sessionId, session, messages, loading, sending, error, send, refresh, complete, hasRouting };
+  /** Clears the active session so the next message creates a new triage (+ new path). */
+  const startNew = useCallback(() => {
+    if (patientId) window.localStorage.removeItem(storageKey(patientId));
+    setSessionId(null);
+    setSession(null);
+    setMessages([]);
+    setError(null);
+  }, [patientId]);
+
+  return {
+    sessionId,
+    session,
+    messages,
+    loading,
+    sending,
+    error,
+    send,
+    refresh,
+    complete,
+    startNew,
+    hasRouting,
+  };
 }
