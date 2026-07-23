@@ -98,6 +98,24 @@ export const consultationsApi = {
     });
   },
 
+  complete(
+    sessionId: string,
+    payload: {
+      complaints?: string;
+      anamnesis?: string;
+      examinationNotes?: string;
+      preliminaryDiagnosisIcd10?: string;
+      preliminaryDiagnosisText?: string;
+      recommendations?: string;
+      nextVisitDate?: string;
+    },
+  ) {
+    return apiRequest<unknown>(`/api/v1/consultations/${sessionId}/complete`, {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
   submitRating(
     sessionId: string,
     payload: { role?: string; score: number; feedback?: string },

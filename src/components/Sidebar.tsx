@@ -2,7 +2,9 @@ import { NavLink } from 'react-router-dom';
 import { ThemeToggle } from './ThemeToggle';
 import { useAuth } from '@/auth/AuthProvider';
 
-const NAV_ITEMS = [
+export type NavItem = { to: string; label: string; end?: boolean };
+
+export const PATIENT_NAV_ITEMS: NavItem[] = [
   { to: '/patient', label: 'Мой путь', end: true },
   { to: '/patient/triage', label: 'ИИ-триаж' },
   { to: '/patient/documents', label: 'Документы' },
@@ -12,7 +14,21 @@ const NAV_ITEMS = [
   { to: '/patient/support', label: 'Поддержка' },
 ];
 
-export function Sidebar() {
+export const DOCTOR_NAV_ITEMS: NavItem[] = [
+  { to: '/doctor', label: 'Рабочий стол', end: true },
+  { to: '/doctor/calendar', label: 'Календарь' },
+  { to: '/doctor/patients', label: 'Пациенты' },
+  { to: '/doctor/notifications', label: 'Уведомления' },
+  { to: '/doctor/profile', label: 'Профиль врача' },
+];
+
+export function Sidebar({
+  roleLabel = 'Пациент',
+  navItems = PATIENT_NAV_ITEMS,
+}: {
+  roleLabel?: string;
+  navItems?: NavItem[];
+}) {
   const { logout } = useAuth();
 
   return (
@@ -22,10 +38,10 @@ export function Sidebar() {
           <p className="text-[22px] font-bold leading-none text-[#fbfae8] dark:text-[#e0e0e0]">
             Vitals
           </p>
-          <p className="mt-2 text-[13px] text-sidebar-foreground-muted">Пациент</p>
+          <p className="mt-2 text-[13px] text-sidebar-foreground-muted">{roleLabel}</p>
         </div>
         <nav className="flex flex-col gap-1">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

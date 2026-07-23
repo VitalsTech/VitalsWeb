@@ -1,7 +1,8 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '@/auth/AuthProvider';
 import { PatientLayout } from '@/layouts/PatientLayout';
-import { Auth } from '@/pages/patient/Auth';
+import { DoctorLayout } from '@/layouts/DoctorLayout';
+import { Auth } from '@/pages/Auth';
 import { Home } from '@/pages/patient/Home';
 import { Triage } from '@/pages/patient/Triage';
 import { TriageResult } from '@/pages/patient/TriageResult';
@@ -20,13 +21,21 @@ import { Notifications } from '@/pages/patient/Notifications';
 import { Support } from '@/pages/patient/Support';
 import { Profile } from '@/pages/patient/Profile';
 import { ProfileEdit } from '@/pages/patient/ProfileEdit';
+import { Desk } from '@/pages/doctor/Desk';
+import { Calendar } from '@/pages/doctor/Calendar';
+import { EventDetail } from '@/pages/doctor/EventDetail';
+import { Patients } from '@/pages/doctor/Patients';
+import { PatientDetail } from '@/pages/doctor/PatientDetail';
+import { PatientChat } from '@/pages/doctor/PatientChat';
+import { DoctorProfile } from '@/pages/doctor/DoctorProfile';
+import { Notifications as DoctorNotifications } from '@/pages/doctor/Notifications';
 
 export default function App() {
   return (
     <AuthProvider>
       <Routes>
-        <Route path="/" element={<Navigate to="/patient/auth" replace />} />
-        <Route path="/patient/auth" element={<Auth />} />
+        <Route path="/" element={<Navigate to="/auth" replace />} />
+        <Route path="/auth" element={<Auth />} />
 
         <Route path="/patient" element={<PatientLayout />}>
           <Route index element={<Home />} />
@@ -52,6 +61,21 @@ export default function App() {
           <Route path="support" element={<Support />} />
           <Route path="profile" element={<Profile />} />
           <Route path="profile/edit" element={<ProfileEdit />} />
+        </Route>
+
+        <Route path="/doctor" element={<DoctorLayout />}>
+          <Route index element={<Desk />} />
+
+          <Route path="calendar" element={<Calendar />}>
+            <Route path=":patientId" element={<EventDetail />} />
+          </Route>
+
+          <Route path="patients" element={<Patients />} />
+          <Route path="patients/:patientId" element={<PatientDetail />} />
+          <Route path="patients/:patientId/chat" element={<PatientChat />} />
+
+          <Route path="notifications" element={<DoctorNotifications />} />
+          <Route path="profile" element={<DoctorProfile />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

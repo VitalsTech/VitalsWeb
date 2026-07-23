@@ -5,10 +5,12 @@ import { Button } from '@/components/ui/Button';
 import { FieldLabel, Input, Select } from '@/components/ui/Input';
 import { useAuth } from '@/auth/AuthProvider';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import type { Role } from '@/api/tokenStore';
 
 type Tab = 'login' | 'register';
 
 export function Auth() {
+  const [role, setRole] = useState<Role>('patient');
   const [tab, setTab] = useState<Tab>('login');
   const { login, register } = useAuth();
   const navigate = useNavigate();
@@ -20,6 +22,8 @@ export function Auth() {
   const [secondName, setSecondName] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [sex, setSex] = useState('Female');
+  const [specialization, setSpecialization] = useState('');
+  const [licenseNumber, setLicenseNumber] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -29,11 +33,23 @@ export function Auth() {
     setSubmitting(true);
     try {
       if (tab === 'login') {
-        await login({ phoneNumber, password });
-        navigate('/patient');
+        await login({ phoneNumber, password }, role);
+        navigate(role === 'doctor' ? '/doctor' : '/patient');
       } else {
-        await register({ phoneNumber, password, firstName, secondName, surename, birthDate, sex });
-        navigate('/patient/profile');
+        await register(
+          {
+            phoneNumber,
+            password,
+            firstName,
+            secondName,
+            surename,
+            birthDate,
+            sex,
+            ...(role === 'doctor' ? { specialization, licenseNumber } : {}),
+          },
+          role,
+        );
+        navigate(role === 'doctor' ? '/doctor/profile' : '/patient/profile');
       }
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Что-то пошло не так, попробуйте ещё раз.');
@@ -51,10 +67,33 @@ export function Auth() {
       <div className="w-full max-w-[800px]">
         <div className="mb-8 text-center">
           <p className="text-[36px] font-bold text-primary">Vitals</p>
-          <p className="mt-2 text-[16px] text-text-muted">Вход для пациента</p>
+          <p className="mt-2 text-[16px] text-text-muted">
+            {role === 'doctor' ? 'Вход для врача' : 'Вход для пациента'}
+          </p>
         </div>
 
         <div className="rounded-lg border border-border bg-surface p-10">
+          <div className="mb-5 grid grid-cols-2 gap-0 overflow-hidden rounded-md border border-border">
+            <button
+              type="button"
+              onClick={() => setRole('patient')}
+              className={`h-11 text-[14px] font-semibold transition-colors ${
+                role === 'patient' ? 'bg-accent text-[#11442f]' : 'bg-surface text-text-muted'
+              }`}
+            >
+              Я пациент
+            </button>
+            <button
+              type="button"
+              onClick={() => setRole('doctor')}
+              className={`h-11 text-[14px] font-semibold transition-colors ${
+                role === 'doctor' ? 'bg-accent text-[#11442f]' : 'bg-surface text-text-muted'
+              }`}
+            >
+              Я врач
+            </button>
+          </div>
+
           <div className="mb-7 grid grid-cols-2 gap-0 overflow-hidden rounded-md border border-border">
             <button
               type="button"
@@ -125,6 +164,26 @@ export function Auth() {
                     </Select>
                   </div>
                 </div>
+                {role === 'doctor' && (
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                    <div>
+                      <FieldLabel>Специальность</FieldLabel>
+                      <Input
+                        value={specialization}
+                        onChange={(e) => setSpecialization(e.target.value)}
+                        placeholder="Врач-терапевт участковый"
+                      />
+                    </div>
+                    <div>
+                      <FieldLabel>Сертификат специалиста</FieldLabel>
+                      <Input
+                        value={licenseNumber}
+                        onChange={(e) => setLicenseNumber(e.target.value)}
+                        placeholder="№778291 / до 2030"
+                      />
+                    </div>
+                  </div>
+                )}
               </>
             )}
             <div>

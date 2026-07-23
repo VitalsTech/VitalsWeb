@@ -63,13 +63,19 @@ export function findPatientProfile(profiles: UserProfileDto[] | null | undefined
   return profiles.find((p) => (p.profileType ?? '').toLowerCase().includes('patient'));
 }
 
+/** Finds the doctor profile among a user's profiles, if any. */
+export function findDoctorProfile(profiles: UserProfileDto[] | null | undefined) {
+  if (!profiles) return undefined;
+  return profiles.find((p) => (p.profileType ?? '').toLowerCase().includes('doctor'));
+}
+
 export function getProfileId(profile: UserProfileDto | undefined): string | undefined {
   if (!profile) return undefined;
   return profile.id ?? profile.profileId;
 }
 
-export function formatUserName(user: UserDto | null | undefined): string {
-  if (!user) return 'Пациент';
+export function formatUserName(user: UserDto | null | undefined, fallback = 'Пациент'): string {
+  if (!user) return fallback;
   const parts = [user.surename, user.firstName, user.secondName].filter(Boolean);
-  return parts.length > 0 ? parts.join(' ') : (user.phoneNumber ?? 'Пациент');
+  return parts.length > 0 ? parts.join(' ') : (user.phoneNumber ?? fallback);
 }

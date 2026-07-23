@@ -1,9 +1,9 @@
 import { Navigate, Outlet } from 'react-router-dom';
-import { Sidebar, PATIENT_NAV_ITEMS } from '@/components/Sidebar';
+import { Sidebar, DOCTOR_NAV_ITEMS } from '@/components/Sidebar';
 import { useAuth } from '@/auth/AuthProvider';
 
-export function PatientLayout() {
-  const { isAuthenticated, isLoading, role, patientId } = useAuth();
+export function DoctorLayout() {
+  const { isAuthenticated, isLoading, role, doctorId } = useAuth();
 
   if (!isAuthenticated) {
     return <Navigate to="/auth" replace />;
@@ -17,14 +17,14 @@ export function PatientLayout() {
     );
   }
 
-  // A doctor-only account has no patient profile — send it to its own area.
-  if (role === 'doctor' && !patientId) {
-    return <Navigate to="/doctor" replace />;
+  // A patient-only account has no doctor profile — send it to its own area.
+  if (role === 'patient' && !doctorId) {
+    return <Navigate to="/patient" replace />;
   }
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-bg">
-      <Sidebar roleLabel="Пациент" navItems={PATIENT_NAV_ITEMS} />
+      <Sidebar roleLabel="Врач" navItems={DOCTOR_NAV_ITEMS} />
       <main className="flex-1 overflow-y-auto scrollbar-thin">
         <div className="mx-auto max-w-[1400px] px-10 py-9">
           <Outlet />

@@ -4,7 +4,11 @@ const ACCESS_KEY = 'vitals.accessToken';
 const REFRESH_KEY = 'vitals.refreshToken';
 const PUBLIC_ID_KEY = 'vitals.publicId';
 const PATIENT_ID_KEY = 'vitals.patientId';
+const DOCTOR_ID_KEY = 'vitals.doctorId';
+const ROLE_KEY = 'vitals.role';
 const FINGERPRINT_KEY = 'vitals.deviceFingerprint';
+
+export type Role = 'patient' | 'doctor';
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -34,6 +38,25 @@ export function getPatientId(): string | null {
   return localStorage.getItem(PATIENT_ID_KEY);
 }
 
+export function getDoctorId(): string | null {
+  return localStorage.getItem(DOCTOR_ID_KEY);
+}
+
+export function setDoctorId(doctorId: string) {
+  localStorage.setItem(DOCTOR_ID_KEY, doctorId);
+  notify();
+}
+
+export function getRole(): Role | null {
+  const value = localStorage.getItem(ROLE_KEY);
+  return value === 'patient' || value === 'doctor' ? value : null;
+}
+
+export function setRole(role: Role) {
+  localStorage.setItem(ROLE_KEY, role);
+  notify();
+}
+
 export function hasSession(): boolean {
   return Boolean(getAccessToken());
 }
@@ -42,14 +65,27 @@ export type Session = {
   accessToken: string;
   refreshToken: string;
   publicId?: string;
+  /** Generic "primary profile" id claim recovered from the JWT — its
+   * meaning (patient vs doctor profile id) depends on which role the user
+   * signed in/registered as. */
   patientId?: string;
 };
 
-export function setSession(session: Session) {
+/**
+ * Persists tokens for the current session. `role` decides which profile-id
+ * slot the JWT's generic profile-id claim is stored under (patient vs
+ * doctor) — it defaults to `patient` to preserve existing behaviour for
+ * call sites (e.g. the token-refresh flow) that don't know/care about role.
+ */
+export function setSession(session: Session, role: Role = getRole() ?? 'patient') {
   localStorage.setItem(ACCESS_KEY, session.accessToken);
   localStorage.setItem(REFRESH_KEY, session.refreshToken);
   if (session.publicId) localStorage.setItem(PUBLIC_ID_KEY, session.publicId);
-  if (session.patientId) localStorage.setItem(PATIENT_ID_KEY, session.patientId);
+  localStorage.setItem(ROLE_KEY, role);
+  if (session.patientId) {
+    if (role === 'doctor') localStorage.setItem(DOCTOR_ID_KEY, session.patientId);
+    else localStorage.setItem(PATIENT_ID_KEY, session.patientId);
+  }
   notify();
 }
 
@@ -63,6 +99,8 @@ export function clearSession() {
   localStorage.removeItem(REFRESH_KEY);
   localStorage.removeItem(PUBLIC_ID_KEY);
   localStorage.removeItem(PATIENT_ID_KEY);
+  localStorage.removeItem(DOCTOR_ID_KEY);
+  localStorage.removeItem(ROLE_KEY);
   notify();
 }
 
@@ -105,8 +143,8 @@ export function extractSession(data: unknown): Session | null {
     pickString(obj, ['publicId', 'userId', 'id']) ??
     pickString(claims, ['publicId', 'sub', 'userId', 'nameid', 'id']);
   const patientId =
-    pickString(obj, ['patientId', 'profileId']) ??
-    pickString(claims, ['patientId', 'profileId', 'pid']);
+    pickString(obj, ['patientId', 'doctorId', 'profileId']) ??
+    pickString(claims, ['patientId', 'doctorId', 'profileId', 'pid']);
 
   return { accessToken, refreshToken, publicId, patientId };
 }
