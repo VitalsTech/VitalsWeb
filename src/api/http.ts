@@ -52,10 +52,24 @@ function safeJsonParse(text: string): unknown {
 function extractErrorMessage(data: unknown, fallback: string): string {
   if (data && typeof data === 'object') {
     const obj = data as Record<string, unknown>;
-    if (typeof obj.message === 'string') return obj.message;
-    if (typeof obj.title === 'string') return obj.title;
-    if (typeof obj.error === 'string') return obj.error;
+    if (typeof obj.error === 'string' && obj.error.trim()) return obj.error;
+    if (Array.isArray(obj.errors) && obj.errors.length > 0) {
+      const first = obj.errors[0];
+      if (typeof first === 'string') return first;
+      if (first && typeof first === 'object' && typeof (first as Record<string, unknown>).message === 'string') {
+        return (first as Record<string, unknown>).message as string;
+      }
+    }
+    if (typeof obj.message === 'string' && obj.message.trim()) return obj.message;
+    if (typeof obj.title === 'string' && obj.title.trim()) return obj.title;
   }
+  return fallback || 'Не удалось выполнить операцию';
+}
+
+/** User-facing API error text (Russian when gateway provides it). */
+export function formatApiError(error: unknown, fallback = 'Не удалось выполнить операцию'): string {
+  if (error instanceof ApiError) return error.message || fallback;
+  if (error instanceof Error && error.message) return error.message;
   return fallback;
 }
 

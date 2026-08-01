@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom';
-import { Sidebar, PATIENT_NAV_ITEMS } from '@/components/Sidebar';
+import { AppShell } from '@/components/AppShell';
+import { PATIENT_NAV_ITEMS } from '@/components/Sidebar';
 import { useAuth } from '@/auth/AuthProvider';
 
 export function PatientLayout() {
@@ -11,25 +12,19 @@ export function PatientLayout() {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-bg">
+      <div className="flex h-[100dvh] w-full items-center justify-center bg-bg">
         <p className="text-[14px] text-text-muted">Загрузка…</p>
       </div>
     );
   }
 
-  // A doctor-only account has no patient profile — send it to its own area.
   if (role === 'doctor' && !patientId) {
     return <Navigate to="/doctor" replace />;
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-bg">
-      <Sidebar roleLabel="Пациент" navItems={PATIENT_NAV_ITEMS} />
-      <main className="flex-1 overflow-y-auto scrollbar-thin">
-        <div className="mx-auto max-w-[1400px] px-10 py-9">
-          <Outlet />
-        </div>
-      </main>
-    </div>
+    <AppShell roleLabel="Пациент" navItems={PATIENT_NAV_ITEMS}>
+      <Outlet />
+    </AppShell>
   );
 }

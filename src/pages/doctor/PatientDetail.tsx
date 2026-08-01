@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
@@ -15,6 +15,7 @@ import { Modal } from '@/components/ui/Modal';
 import { PrescriptionDetailModal, PrescriptionStatusBadge } from '@/components/PrescriptionDetailModal';
 import { Badge } from '@/components/ui/Badge';
 import { getContact, upsertContact } from './contacts';
+import { routingApi, normalizeRouteSteps } from '@/api/routing';
 
 type Tab = 'overview' | 'diagnoses' | 'prescriptions';
 
@@ -126,11 +127,29 @@ export function PatientDetail() {
     [patientId],
   );
 
+  const activeRoute = useAsyncData(
+    () =>
+      patientId
+        ? routingApi.getActiveRoute(patientId).catch(() => null)
+        : Promise.resolve(null),
+    [patientId],
+  );
+
+  const routeSteps = useMemo(
+    () => normalizeRouteSteps(activeRoute.data ?? undefined),
+    [activeRoute.data],
+  );
+
   const allEvents = normalizeHistory(history.data);
   const historyState = extractHistoryState(history.data);
   const stateDiagnoses = historyState?.activeDiagnoses ?? state.data?.activeDiagnoses ?? [];
   const documents = allEvents
-    .filter((e) => e.eventType === 'document' || e.eventType === 'DocumentUploaded')
+    .filter(
+      (e) =>
+        e.eventType === 'document' ||
+        e.eventType === 'DocumentUploaded' ||
+        e.eventType === 'PrescriptionIssued',
+    )
     .slice(0, 3);
   const diagnoses = diagnosesFromHistory(allEvents, stateDiagnoses);
   const prescriptionList = normalizePrescriptions(prescriptions.data);
@@ -341,6 +360,44 @@ export function PatientDetail() {
                       </ol>
                     )}
                   </div>
+                </div>
+              )}
+            </Card>
+
+            <Card className="p-6 lg:col-span-2">
+              <h3 className="text-[16px] font-semibold text-text">Активный маршрут</h3>
+              <p className="mt-1 text-[13px] text-text-muted">
+                Данные из routing API · triage → консультация → анализы
+              </p>
+              {routeSteps.length === 0 ? (
+                <p className="mt-4 text-[14px] text-text-muted">
+                  Активный маршрут не назначен или ещё не синхронизирован.
+                </p>
+              ) : (
+                <ol className="mt-4 flex flex-col gap-2">
+                  {routeSteps.map((step, index) => (
+                    <li key={`${step.title}-${index}`} className="flex items-center gap-3 text-[14px] text-text">
+                      <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary text-[12px] font-bold text-primary-foreground">
+                        {index + 1}
+                      </span>
+                      <div>
+                        <p className="font-semibold">{step.title ?? `Шаг ${index + 1}`}</p>
+                        {step.description ? (
+                          <p className="text-[13px] text-text-muted">{step.description}</p>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {(activeRoute.data?.recommendedLabs?.length ?? 0) > 0 && (
+                <div className="mt-4 rounded-md border border-border bg-surface-muted px-4 py-3">
+                  <p className="text-[12px] font-semibold text-text">Рекомендованные анализы</p>
+                  <ul className="mt-2 list-inside list-disc text-[13px] text-text-muted">
+                    {activeRoute.data!.recommendedLabs!.map((lab) => (
+                      <li key={lab}>{lab}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </Card>

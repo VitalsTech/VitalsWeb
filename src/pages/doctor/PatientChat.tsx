@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -14,8 +14,11 @@ import { getContact, upsertContact } from './contacts';
 
 export function PatientChat() {
   const { patientId } = useParams();
+  const [searchParams] = useSearchParams();
   const { doctorId } = useAuth();
   const [draft, setDraft] = useState('');
+  /** Календарь открывает конкретную консультацию из слота. */
+  const sessionIdParam = searchParams.get('sessionId');
 
   const contact = getContact(doctorId, patientId);
 
@@ -24,7 +27,11 @@ export function PatientChat() {
     [patientId],
   );
 
-  const { messages, loading, sending, error, send } = useConsultationChat(doctorId, patientId);
+  const { messages, loading, sending, error, send } = useConsultationChat(
+    doctorId,
+    patientId,
+    sessionIdParam,
+  );
 
   useEffect(() => {
     if (doctorId && patientId) upsertContact(doctorId, { patientId });

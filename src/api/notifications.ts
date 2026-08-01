@@ -5,6 +5,10 @@ export interface NotificationDto {
   title?: string;
   message?: string;
   body?: string;
+  subject?: string;
+  category?: string;
+  patientId?: string;
+  deepLink?: string;
   createdAt?: string;
   sentAt?: string;
   isRead?: boolean;
@@ -60,12 +64,59 @@ export function normalizeNotifications(
       item.message ??
       (typeof item.body === 'string' ? item.body : undefined) ??
       '';
+    const category =
+      typeof item.category === 'string'
+        ? item.category.toLowerCase()
+        : undefined;
     return {
       ...item,
       id: item.id ?? (typeof item.deliveryId === 'string' ? item.deliveryId : undefined),
       title,
       message,
       body: item.body ?? message,
+      category,
     };
   });
+}
+
+export type NotificationCategory =
+  | 'all'
+  | 'booking'
+  | 'triage'
+  | 'mood'
+  | 'message'
+  | 'messages'
+  | 'schedule';
+
+const CATEGORY_ALIASES: Record<string, NotificationCategory> = {
+  booking: 'booking',
+  triage: 'triage',
+  mood: 'mood',
+  message: 'message',
+  messages: 'message',
+  schedule: 'schedule',
+};
+
+export function notificationCategory(item: NotificationDto): NotificationCategory | 'other' {
+  const raw = (item.category ?? '').toLowerCase();
+  if (raw && CATEGORY_ALIASES[raw]) return CATEGORY_ALIASES[raw];
+  const text = `${item.title ?? ''} ${item.message ?? ''}`.toLowerCase();
+  if (text.includes('самочувств') || text.includes('лучше') || text.includes('хуже')) return 'mood';
+  if (text.includes('триаж') || text.includes('маршрут')) return 'triage';
+  if (text.includes('запис') || text.includes('приём') || text.includes('консультац')) return 'booking';
+  if (text.includes('сообщен') || text.includes('чат')) return 'message';
+  if (text.includes('расписан') || text.includes('слот')) return 'schedule';
+  return 'other';
+}
+
+export function notificationPatientLink(item: NotificationDto): string | null {
+  if (typeof item.deepLink === 'string' && item.deepLink.startsWith('/')) return item.deepLink;
+  if (typeof item.patientId === 'string') return `/doctor/patients/${item.patientId}`;
+  const payload = item.payload ?? item.data;
+  if (payload && typeof payload === 'object') {
+    const p = payload as Record<string, unknown>;
+    if (typeof p.patientId === 'string') return `/doctor/patients/${p.patientId}`;
+    if (typeof p.deepLink === 'string') return p.deepLink;
+  }
+  return null;
 }

@@ -18,6 +18,8 @@ import {
   getPrescriptionStatusLabel,
 } from '@/api/prescriptions';
 import { useTriageSession } from './useTriageSession';
+import { routingApi, normalizeRouteSteps } from '@/api/routing';
+import type { RouteStepDto } from '@/api/routing';
 
 type MoodPayload = {
   mood?: string;
@@ -177,6 +179,25 @@ export function Home() {
     [patientId],
   );
 
+  const activeRouteQuery = useAsyncData(
+    () =>
+      patientId
+        ? routingApi.getActiveRoute(patientId).catch(() => null)
+        : Promise.resolve(null),
+    [patientId],
+  );
+
+  const apiRouteSteps = useMemo(
+    () => normalizeRouteSteps(activeRouteQuery.data ?? undefined),
+    [activeRouteQuery.data],
+  );
+
+  const recommendedLabs = useMemo(() => {
+    const fromRoute = activeRouteQuery.data?.recommendedLabs;
+    if (Array.isArray(fromRoute) && fromRoute.length > 0) return fromRoute;
+    return [];
+  }, [activeRouteQuery.data]);
+
   const events = useMemo(() => {
     return [...normalizeHistory(history.data)].sort((a, b) => eventTime(b) - eventTime(a));
   }, [history.data]);
@@ -202,6 +223,30 @@ export function Home() {
     Boolean(latestPath) || triage.hasRouting || Boolean(triage.sessionId && recommendation);
 
   const pathSteps = useMemo((): PathStep[] => {
+    if (apiRouteSteps.length > 0) {
+      const currentIndex =
+        typeof activeRouteQuery.data?.currentStepIndex === 'number'
+          ? activeRouteQuery.data.currentStepIndex
+          : apiRouteSteps.findIndex((s) => {
+              const status = String(s.status ?? '').toLowerCase();
+              return status === 'current' || status === 'in_progress' || status === 'active';
+            });
+
+      const statuses = (index: number): PathStepStatus => {
+        const stepStatus = String(apiRouteSteps[index]?.status ?? '').toLowerCase();
+        if (stepStatus === 'done' || stepStatus === 'completed') return 'done';
+        if (index < currentIndex) return 'done';
+        if (index === currentIndex) return 'current';
+        return 'upcoming';
+      };
+
+      return apiRouteSteps.map((step: RouteStepDto, index: number) => ({
+        title: step.title ?? `Шаг ${index + 1}`,
+        description: step.description ?? String(step.type ?? 'Этап маршрута'),
+        status: statuses(index),
+      }));
+    }
+
     if (!hasTriage) {
       return [
         {
@@ -274,7 +319,15 @@ export function Home() {
         status: statuses(3),
       },
     ];
-  }, [hasTriage, hasConsultation, hasPrescription, specialty, recommendation]);
+  }, [
+    apiRouteSteps,
+    activeRouteQuery.data?.currentStepIndex,
+    hasTriage,
+    hasConsultation,
+    hasPrescription,
+    specialty,
+    recommendation,
+  ]);
 
   const currentStepIndex = pathSteps.findIndex((s) => s.status === 'current');
   const activeStepNumber = currentStepIndex >= 0 ? currentStepIndex + 1 : 1;
@@ -385,7 +438,7 @@ export function Home() {
           <div className="mt-6 flex flex-col gap-4">
             {pathSteps.map((step) => (
               <div
-                key={step.title}
+                key={`${step.title}-${step.description}`}
                 className="flex items-start gap-4 rounded-[12px] border border-border px-4 py-5"
               >
                 <StepDot status={step.status} />
@@ -397,8 +450,19 @@ export function Home() {
             ))}
           </div>
 
+          {recommendedLabs.length > 0 && (
+            <div className="mt-4 rounded-[12px] border border-border bg-surface-muted px-4 py-4">
+              <p className="text-[13px] font-semibold text-text">Рекомендованные анализы</p>
+              <ul className="mt-2 list-inside list-disc text-[13px] text-text-muted">
+                {recommendedLabs.map((lab) => (
+                  <li key={lab}>{lab}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Button size="lg" className="w-full max-w-[400px] justify-start" onClick={cta.action}>
+            <Button size="lg" className="w-full justify-start sm:max-w-[400px]" onClick={cta.action}>
               {cta.label}
             </Button>
             {triage.sessionId && !triage.hasRouting && (

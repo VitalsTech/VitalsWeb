@@ -1,15 +1,20 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { AsyncState } from '@/components/AsyncState';
 import { useAsyncData } from '@/lib/useAsyncData';
-import { notificationsApi, normalizeNotifications } from '@/api/notifications';
+import {
+  notificationsApi,
+  normalizeNotifications,
+  notificationCategory,
+  notificationPatientLink,
+  type NotificationCategory,
+} from '@/api/notifications';
 import type { NotificationDto } from '@/api/notifications';
 
-type Category = 'all' | 'booking' | 'triage' | 'mood' | 'message' | 'schedule';
-
-const CATEGORY_TABS: [Category, string][] = [
+const CATEGORY_TABS: [NotificationCategory, string][] = [
   ['all', 'Все'],
   ['booking', 'Записи'],
   ['triage', 'Триаж'],
@@ -18,18 +23,9 @@ const CATEGORY_TABS: [Category, string][] = [
   ['schedule', 'Расписание'],
 ];
 
-const CATEGORY_KEYWORDS: Record<Exclude<Category, 'all'>, string[]> = {
-  booking: ['запис', 'приём', 'консультац'],
-  triage: ['триаж', 'срочн', 'маршрут'],
-  mood: ['самочувств', 'отметк', 'лучше', 'хуже', 'без изменений', 'mood'],
-  message: ['сообщен', 'чат'],
-  schedule: ['расписан', 'перенес', 'вызов'],
-};
-
-function matchesCategory(item: NotificationDto, category: Category): boolean {
+function matchesCategory(item: NotificationDto, category: NotificationCategory): boolean {
   if (category === 'all') return true;
-  const text = `${item.title ?? ''} ${item.message ?? item.body ?? ''}`.toLowerCase();
-  return CATEGORY_KEYWORDS[category].some((keyword) => text.includes(keyword));
+  return notificationCategory(item) === category;
 }
 
 function formatDate(item: { createdAt?: string; sentAt?: string }) {
@@ -40,8 +36,12 @@ function formatDate(item: { createdAt?: string; sentAt?: string }) {
   return date.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
+function showUnreadBadge(item: NotificationDto) {
+  return item.isRead === false || item.read === false;
+}
+
 export function Notifications() {
-  const [category, setCategory] = useState<Category>('all');
+  const [category, setCategory] = useState<NotificationCategory>('all');
   const { data, loading, error, reload } = useAsyncData(() => notificationsApi.getHistory(50), []);
   const notifications = normalizeNotifications(data).filter((n) => matchesCategory(n, category));
 
@@ -74,9 +74,10 @@ export function Notifications() {
           </Card>
         ) : (
           <div className="flex flex-col gap-4">
-            {notifications.map((item, i) => (
-              <Card key={item.id ?? i} className="flex items-center justify-between px-6 py-5">
-                <div>
+            {notifications.map((item, i) => {
+              const patientLink = notificationPatientLink(item);
+              const content = (
+                <>
                   <p className="text-[15px] font-semibold text-text">
                     {item.title ?? item.message ?? 'Уведомление'}
                   </p>
@@ -84,12 +85,25 @@ export function Notifications() {
                     {item.message && item.message !== item.title ? item.message : ''}{' '}
                     {formatDate(item)}
                   </p>
-                </div>
-                {item.isRead === false || item.read === false ? (
-                  <Badge tone="success">новое</Badge>
-                ) : null}
-              </Card>
-            ))}
+                  {patientLink && (
+                    <p className="mt-2 text-[13px] font-semibold text-primary">Открыть карточку пациента →</p>
+                  )}
+                </>
+              );
+
+              return (
+                <Card key={item.id ?? i} className="flex items-center justify-between px-6 py-5">
+                  {patientLink ? (
+                    <Link to={patientLink} className="min-w-0 flex-1 hover:opacity-90">
+                      {content}
+                    </Link>
+                  ) : (
+                    <div className="min-w-0 flex-1">{content}</div>
+                  )}
+                  {showUnreadBadge(item) ? <Badge tone="success">новое</Badge> : null}
+                </Card>
+              );
+            })}
           </div>
         )}
       </AsyncState>

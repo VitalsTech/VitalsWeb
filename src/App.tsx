@@ -14,6 +14,8 @@ import { Doctors } from '@/pages/patient/Doctors';
 import { DoctorDetail } from '@/pages/patient/DoctorDetail';
 import { DoctorChat } from '@/pages/patient/DoctorChat';
 import { DoctorBook } from '@/pages/patient/DoctorBook';
+import { MyConsultations } from '@/pages/patient/MyConsultations';
+import { ConsultationSession } from '@/pages/patient/ConsultationSession';
 import { HouseCall } from '@/pages/patient/HouseCall';
 import { Treatment } from '@/pages/patient/Treatment';
 import { Labs } from '@/pages/patient/Labs';
@@ -23,7 +25,6 @@ import { Profile } from '@/pages/patient/Profile';
 import { ProfileEdit } from '@/pages/patient/ProfileEdit';
 import { Desk } from '@/pages/doctor/Desk';
 import { Calendar } from '@/pages/doctor/Calendar';
-import { EventDetail } from '@/pages/doctor/EventDetail';
 import { Patients } from '@/pages/doctor/Patients';
 import { PatientDetail } from '@/pages/doctor/PatientDetail';
 import { PatientChat } from '@/pages/doctor/PatientChat';
@@ -53,6 +54,9 @@ export default function App() {
           <Route path="doctors/:id/chat" element={<DoctorChat />} />
           <Route path="doctors/:id/book" element={<DoctorBook />} />
 
+          <Route path="consultations" element={<MyConsultations />} />
+          <Route path="consultations/:sessionId" element={<ConsultationSession />} />
+
           <Route path="house-call" element={<HouseCall />} />
           <Route path="treatment" element={<Treatment />} />
           <Route path="labs" element={<Labs />} />
@@ -66,9 +70,7 @@ export default function App() {
         <Route path="/doctor" element={<DoctorLayout />}>
           <Route index element={<Desk />} />
 
-          <Route path="calendar" element={<Calendar />}>
-            <Route path=":patientId" element={<EventDetail />} />
-          </Route>
+          <Route path="calendar" element={<Calendar />} />
 
           <Route path="patients" element={<Patients />} />
           <Route path="patients/:patientId" element={<PatientDetail />} />

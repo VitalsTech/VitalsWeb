@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { consultationsApi, getConsultationId, normalizeMessages } from '@/api/consultations';
-import type { ConsultationMessageDto } from '@/api/consultations';
+import {
+  consultationsApi,
+  CONSULTATION_TYPE,
+  getConsultationId,
+  normalizeMessages,
+} from '@/api/consultations';
 import type { ChatMessage } from '@/types/chat';
+import { toChatMessage } from '@/lib/chatMessage';
 import { nextId } from '@/lib/id';
 
 function storageKey(patientId: string, doctorId: string) {
   return `vitals.chatConsultationId.${patientId}.${doctorId}`;
-}
-
-function toChatMessage(dto: ConsultationMessageDto, fallbackId: string): ChatMessage {
-  const role = String(dto.senderRole ?? dto.role ?? 'doctor').toLowerCase();
-  const from: ChatMessage['from'] = role.includes('patient') || role.includes('user') ? 'user' : 'doctor';
-  const id = String(dto.id ?? dto.messageId ?? fallbackId);
-  return { id, from, text: String(dto.content ?? '') };
 }
 
 /**
@@ -29,12 +27,15 @@ export function useDoctorChat(patientId: string | null, doctorId: string | undef
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sessionRef = useRef<string | null>(sessionId);
-  sessionRef.current = sessionId;
 
-  const loadMessages = useCallback(async (id: string) => {
-    const response = await consultationsApi.getMessages(id, 0);
+  useEffect(() => {
+    sessionRef.current = sessionId;
+  }, [sessionId]);
+
+  const loadMessages = useCallback(async (id: string, markAsRead = true) => {
+    const response = await consultationsApi.getMessages(id, 0, { markAsRead });
     const list = normalizeMessages(response);
-    setMessages(list.map((m, i) => toChatMessage(m, `m-${i}`)));
+    setMessages(list.map((m, i) => toChatMessage(m, `m-${i}`, 'patient')));
   }, []);
 
   useEffect(() => {
@@ -50,7 +51,6 @@ export function useDoctorChat(patientId: string | null, doctorId: string | undef
       try {
         let id = sessionRef.current;
 
-        // Prefer server-side active session so doctor/patient share one chat across browsers.
         try {
           const active = await consultationsApi.getActive(currentPatientId, currentDoctorId);
           const activeId = getConsultationId(active);
@@ -64,7 +64,7 @@ export function useDoctorChat(patientId: string | null, doctorId: string | undef
             patientId: currentPatientId,
             doctorId: currentDoctorId,
             doctorName,
-            consultationType: 'chat',
+            consultationType: CONSULTATION_TYPE.chat,
           });
           id = getConsultationId(created) ?? null;
         }
@@ -73,7 +73,7 @@ export function useDoctorChat(patientId: string | null, doctorId: string | undef
           window.localStorage.setItem(storageKeyValue, id);
           if (!cancelled) setSessionId(id);
           await consultationsApi.join(id, 'patient').catch(() => {});
-          await loadMessages(id);
+          await loadMessages(id, true);
         }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Не удалось открыть чат.');
@@ -88,11 +88,10 @@ export function useDoctorChat(patientId: string | null, doctorId: string | undef
     };
   }, [patientId, doctorId, key, doctorName, loadMessages]);
 
-  // Poll so messages from the other participant appear without SignalR.
   useEffect(() => {
     if (!sessionId) return;
     const timer = window.setInterval(() => {
-      void loadMessages(sessionId).catch(() => {});
+      void loadMessages(sessionId, true).catch(() => {});
     }, 2000);
     return () => window.clearInterval(timer);
   }, [sessionId, loadMessages]);
@@ -102,11 +101,18 @@ export function useDoctorChat(patientId: string | null, doctorId: string | undef
       if (!sessionId || !text.trim()) return;
       setSending(true);
       setError(null);
-      const optimistic: ChatMessage = { id: nextId('u'), from: 'user', text };
+      const optimistic: ChatMessage = {
+        id: nextId('u'),
+        from: 'user',
+        text,
+        isMine: true,
+        sentAt: new Date().toISOString(),
+        readAt: null,
+      };
       setMessages((prev) => [...prev, optimistic]);
       try {
         await consultationsApi.sendMessage(sessionId, { messageType: 'text', content: text });
-        await loadMessages(sessionId);
+        await loadMessages(sessionId, false);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Не удалось отправить сообщение.');
       } finally {

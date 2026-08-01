@@ -7,3 +7,4 @@ export * from './consultations';
 export * from './medicalRecords';
 export * from './prescriptions';
 export * from './notifications';
+export * from './routing';

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/Card';
@@ -9,6 +9,8 @@ import { useAuth } from '@/auth/AuthProvider';
 import { useAsyncData } from '@/lib/useAsyncData';
 import { usersApi, findDoctorProfile } from '@/api/users';
 import { authApi } from '@/api/auth';
+import { doctorsApi } from '@/api/doctors';
+import { formatApiError } from '@/api/http';
 
 export function DoctorProfile() {
   const { user, publicId, doctorName } = useAuth();
@@ -37,9 +39,17 @@ export function DoctorProfile() {
 
   const [specialization, setSpecialization] = useState('');
   const [licenseNumber, setLicenseNumber] = useState('');
+  const [biography, setBiography] = useState('');
   const [clinic, setClinic] = useState('');
   const [hours, setHours] = useState('Пн–Пт 9:00–18:00, суббота по записи.');
   const [saveNote, setSaveNote] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  useEffect(() => {
+    const bio = (profileData.biography as string | undefined) ?? '';
+    setBiography(bio);
+  }, [profileData.biography]);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -63,11 +73,23 @@ export function DoctorProfile() {
     }
   }
 
-  function handleSave(e: FormEvent) {
+  async function handleSave(e: FormEvent) {
     e.preventDefault();
-    setSaveNote(
-      'Изменение профессиональных данных не поддерживается текущим контрактом API (нет эндпоинта обновления профиля врача).',
-    );
+    setSaveNote(null);
+    setSaveError(null);
+    setSavingProfile(true);
+    try {
+      await doctorsApi.updateMyProfile({
+        biography: biography.trim() || undefined,
+        ...(specialization.trim() ? { specialization: specialization.trim() } : {}),
+      });
+      setSaveNote('Профиль сохранён.');
+      reload();
+    } catch (err) {
+      setSaveError(formatApiError(err));
+    } finally {
+      setSavingProfile(false);
+    }
   }
 
   return (
@@ -78,7 +100,7 @@ export function DoctorProfile() {
       />
 
       <AsyncState loading={loading} error={error} onRetry={reload}>
-        <form onSubmit={handleSave}>
+        <form onSubmit={(e) => void handleSave(e)}>
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Card className="p-6">
               <h3 className="mb-4 text-[16px] font-semibold text-text">Основное</h3>
@@ -111,6 +133,19 @@ export function DoctorProfile() {
                     }
                     onChange={(e) => setLicenseNumber(e.target.value)}
                     placeholder="№778291 / до 2030"
+                    disabled
+                  />
+                  <p className="mt-1 text-[12px] text-text-muted">
+                    Номер сертификата изменяется через администратора.
+                  </p>
+                </div>
+                <div>
+                  <FieldLabel>О враче</FieldLabel>
+                  <Textarea
+                    value={biography}
+                    onChange={(e) => setBiography(e.target.value)}
+                    rows={5}
+                    placeholder="Расскажите пациентам о своём опыте и подходе к лечению…"
                   />
                 </div>
               </div>
@@ -125,22 +160,18 @@ export function DoctorProfile() {
                     value={clinic || (doctorProfile?.clinicName as string) || ''}
                     onChange={(e) => setClinic(e.target.value)}
                     placeholder="ГК №4, ул. Свободы"
+                    disabled
                   />
                 </div>
-                {(profileData.biography as string | undefined) && (
-                  <div>
-                    <FieldLabel>О враче</FieldLabel>
-                    <p className="text-[14px] text-text-muted">{profileData.biography as string}</p>
-                  </div>
-                )}
                 <div>
                   <FieldLabel>Рабочее время по умолчанию</FieldLabel>
-                  <Textarea value={hours} onChange={(e) => setHours(e.target.value)} rows={3} />
+                  <Textarea value={hours} onChange={(e) => setHours(e.target.value)} rows={3} disabled />
                 </div>
-                <Button type="submit" className="w-fit">
-                  Сохранить
+                <Button type="submit" className="w-fit" disabled={savingProfile}>
+                  {savingProfile ? 'Сохранение…' : 'Сохранить'}
                 </Button>
-                {saveNote && <p className="text-[12px] text-text-muted">{saveNote}</p>}
+                {saveNote && <p className="text-[12px] text-success">{saveNote}</p>}
+                {saveError && <p className="text-[12px] text-danger">{saveError}</p>}
               </div>
             </Card>
           </div>

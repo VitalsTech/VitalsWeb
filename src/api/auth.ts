@@ -21,6 +21,7 @@ export type RegisterPayload = {
   /** Doctor-only fields, sent inside `doctorProfile` when role === 'doctor'. */
   specialization?: string;
   licenseNumber?: string;
+  biography?: string;
 };
 
 export type LoginPayload = {
@@ -49,17 +50,19 @@ export const authApi = {
   },
 
   async register(payload: RegisterPayload, role: Role = 'patient'): Promise<Session> {
-    const { specialization, licenseNumber, ...rest } = payload;
+    const { specialization, licenseNumber, biography, ...rest } = payload;
     const data = await apiRequest<unknown>('/api/v1/auth/register', {
       method: 'POST',
       body: {
         ...rest,
-        // The contract doesn't document the shape of `patientProfile` /
-        // `doctorProfile` — an object marks "create a profile of this type
-        // for this account". We attach the fields the doctor UI collects
-        // (specialization / certificate number) best-effort.
         ...(role === 'doctor'
-          ? { doctorProfile: { specialization, licenseNumber } }
+          ? {
+              doctorProfile: {
+                specialization,
+                licenseNumber,
+                ...(biography?.trim() ? { biography: biography.trim() } : {}),
+              },
+            }
           : { patientProfile: {} }),
       },
       skipAuth: true,

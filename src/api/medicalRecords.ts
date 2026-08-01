@@ -44,6 +44,18 @@ export interface PatientHistoryDto {
   items?: MedicalRecordEventDto[];
 }
 
+export interface AttachmentDto {
+  id?: string;
+  attachmentId?: string;
+  fileName?: string;
+  title?: string;
+  contentType?: string;
+  eventType?: string;
+  prescriptionId?: string;
+  createdAt?: string;
+  [key: string]: unknown;
+}
+
 export const medicalRecordsApi = {
   appendEvent(patientId: string, payload: AppendEventPayload) {
     return apiRequest<MedicalRecordEventDto>(`/api/v1/medical-records/patients/${patientId}/events`, {
@@ -64,6 +76,12 @@ export const medicalRecordsApi = {
 
   getState(patientId: string) {
     return apiRequest<PatientStateDto>(`/api/v1/medical-records/patients/${patientId}/state`);
+  },
+
+  getAttachments(patientId: string) {
+    return apiRequest<AttachmentDto[] | { items?: AttachmentDto[] }>(
+      `/api/v1/medical-records/patients/${patientId}/attachments`,
+    );
   },
 
   createAccessGrant(
@@ -125,3 +143,13 @@ export function parseEventPayload<T = Record<string, unknown>>(
     return null;
   }
 }
+
+export function normalizeAttachments(
+  response: AttachmentDto[] | { items?: AttachmentDto[] } | null | undefined,
+): AttachmentDto[] {
+  if (!response) return [];
+  if (Array.isArray(response)) return response;
+  return response.items ?? [];
+}
+
+export const DOCUMENT_EVENT_TYPES = 'DocumentUploaded,PrescriptionIssued,document,prescription';
