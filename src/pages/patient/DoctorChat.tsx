@@ -8,6 +8,7 @@ import { ChatBubble } from '@/components/ChatBubble';
 import { AsyncState } from '@/components/AsyncState';
 import { useAuth } from '@/auth/AuthProvider';
 import { useAsyncData } from '@/lib/useAsyncData';
+import { useChatAutoScroll } from '@/lib/useChatAutoScroll';
 import { doctorsApi, formatDoctorName, formatDoctorSpecialty, getDoctorBiography } from '@/api/doctors';
 import { DoctorBioBlock } from '@/components/DoctorBioBlock';
 import { useDoctorChat } from './useDoctorChat';
@@ -27,6 +28,7 @@ export function DoctorChat() {
     id,
     doctor ? formatDoctorName(doctor) : undefined,
   );
+  const chatEndRef = useChatAutoScroll([messages, sending, loading]);
 
   async function submit() {
     if (!draft.trim()) return;
@@ -68,6 +70,7 @@ export function DoctorChat() {
                 ) : (
                   messages.map((m) => <ChatBubble key={m.id} message={m} />)
                 )}
+                <div ref={chatEndRef} />
               </AsyncState>
             </Card>
 
