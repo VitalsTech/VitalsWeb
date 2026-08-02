@@ -4,10 +4,10 @@ import { authApi } from '@/api/auth';
 import type { LoginPayload, RegisterPayload } from '@/api/auth';
 import {
   usersApi,
-  findPatientProfile,
-  findDoctorProfile,
-  getProfileId,
+  normalizeProfiles,
+  resolveRoleProfileId,
   formatUserName,
+  type UserProfileDto,
 } from '@/api/users';
 import type { UserDto } from '@/api/users';
 import {
@@ -26,7 +26,9 @@ type AuthContextValue = {
   isAuthenticated: boolean;
   isLoading: boolean;
   role: Role | null;
+  /** Patient ProfileId — НЕ publicId пользователя */
   patientId: string | null;
+  /** Doctor ProfileId — НЕ publicId пользователя */
   doctorId: string | null;
   publicId: string | null;
   patientName: string;
@@ -39,6 +41,21 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+function mergeProfiles(
+  user: UserDto | null | undefined,
+  profilesResponse: unknown,
+): UserProfileDto[] {
+  const byId = new Map<string, UserProfileDto>();
+  for (const profile of [
+    ...normalizeProfiles(user?.profiles),
+    ...normalizeProfiles(profilesResponse as UserProfileDto[] | { items?: UserProfileDto[] }),
+  ]) {
+    const id = profile.profileId ?? profile.id;
+    if (id) byId.set(id, profile);
+  }
+  return [...byId.values()];
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(hasSession);
@@ -60,30 +77,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const currentRole = getRole() ?? 'patient';
     setIsLoading(true);
     try {
-      const needsProfileLookup =
-        currentRole === 'doctor' ? !getDoctorId() : !getPatientId();
-
-      const [userDto, profiles] = await Promise.all([
+      const [userDto, profilesResponse] = await Promise.all([
         usersApi.getUser(currentPublicId).catch(() => null),
-        needsProfileLookup ? usersApi.getProfiles(currentPublicId).catch(() => null) : Promise.resolve(null),
+        usersApi.getProfiles(currentPublicId).catch(() => null),
       ]);
 
       if (userDto) setUser(userDto);
 
-      if (needsProfileLookup && profiles) {
-        if (currentRole === 'doctor') {
-          const doctorProfileId = getProfileId(findDoctorProfile(profiles));
-          if (doctorProfileId) {
-            persistDoctorId(doctorProfileId);
-            setDoctorIdState(doctorProfileId);
-          }
-        } else {
-          const patientProfileId = getProfileId(findPatientProfile(profiles));
-          if (patientProfileId) {
-            persistPatientId(patientProfileId);
-            setPatientIdState(patientProfileId);
-          }
+      const profiles = mergeProfiles(userDto, profilesResponse);
+      const resolvedPatient = resolveRoleProfileId(userDto, profiles, 'patient');
+      const resolvedDoctor = resolveRoleProfileId(userDto, profiles, 'doctor');
+
+      if (currentRole === 'doctor') {
+        if (resolvedDoctor) {
+          persistDoctorId(resolvedDoctor);
+          setDoctorIdState(resolvedDoctor);
         }
+      } else if (resolvedPatient) {
+        // Всегда Patient ProfileId — даже если в localStorage раньше лежал publicId.
+        persistPatientId(resolvedPatient);
+        setPatientIdState(resolvedPatient);
       }
     } finally {
       setIsLoading(false);

@@ -65,6 +65,19 @@ export interface BookConsultationResponse {
   slotLinked?: boolean;
 }
 
+/** Протокол из GET /consultations/{id} после complete. */
+export interface ConsultationProtocolDto {
+  complaints?: string;
+  anamnesis?: string;
+  examinationNotes?: string;
+  preliminaryDiagnosisIcd10?: string;
+  preliminaryDiagnosisText?: string;
+  recommendations?: string;
+  prescriptions?: string[];
+  labOrders?: string[];
+  nextVisitDate?: string | null;
+}
+
 export interface ConsultationDto {
   id?: string;
   sessionId?: string;
@@ -87,6 +100,9 @@ export interface ConsultationDto {
   patientUnreadCount?: number;
   doctorUnreadCount?: number;
   videoRoomId?: string | null;
+  protocol?: ConsultationProtocolDto | null;
+  protocolSignature?: string | null;
+  hasProtocol?: boolean;
   [key: string]: unknown;
 }
 
@@ -111,11 +127,18 @@ export interface ConsultationMessageDto {
   [key: string]: unknown;
 }
 
-export interface LabOrderDto {
-  testName?: string;
-  code?: string;
-  notes?: string;
-  [key: string]: unknown;
+/** Протокол завершения консультации врачом. */
+export interface CompleteConsultationPayload {
+  complaints: string;
+  anamnesis: string;
+  examinationNotes?: string;
+  preliminaryDiagnosisIcd10: string;
+  preliminaryDiagnosisText: string;
+  recommendations: string;
+  prescriptions?: string[];
+  /** Названия направлений на анализы */
+  labOrders?: string[];
+  nextVisitDate?: string | null;
 }
 
 export const consultationsApi = {
@@ -207,20 +230,8 @@ export const consultationsApi = {
     });
   },
 
-  complete(
-    sessionId: string,
-    payload: {
-      complaints?: string;
-      anamnesis?: string;
-      examinationNotes?: string;
-      preliminaryDiagnosisIcd10?: string;
-      preliminaryDiagnosisText?: string;
-      recommendations?: string;
-      nextVisitDate?: string;
-      labOrders?: LabOrderDto[];
-    },
-  ) {
-    return apiRequest<unknown>(`/api/v1/consultations/${sessionId}/complete`, {
+  complete(sessionId: string, payload: CompleteConsultationPayload) {
+    return apiRequest<ConsultationDto>(`/api/v1/consultations/${sessionId}/complete`, {
       method: 'POST',
       body: payload,
     });

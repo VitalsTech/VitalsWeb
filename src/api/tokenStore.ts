@@ -82,9 +82,20 @@ export function setSession(session: Session, role: Role = getRole() ?? 'patient'
   localStorage.setItem(REFRESH_KEY, session.refreshToken);
   if (session.publicId) localStorage.setItem(PUBLIC_ID_KEY, session.publicId);
   localStorage.setItem(ROLE_KEY, role);
-  if (session.patientId) {
-    if (role === 'doctor') localStorage.setItem(DOCTOR_ID_KEY, session.patientId);
-    else localStorage.setItem(PATIENT_ID_KEY, session.patientId);
+  // patientId в Session = ProfileId; publicId туда писать нельзя.
+  const profileId =
+    session.patientId && session.patientId !== session.publicId ? session.patientId : undefined;
+  if (profileId) {
+    if (role === 'doctor') localStorage.setItem(DOCTOR_ID_KEY, profileId);
+    else localStorage.setItem(PATIENT_ID_KEY, profileId);
+  } else if (session.publicId) {
+    // Сброс ошибочно сохранённого ранее publicId в слоте профиля.
+    if (role === 'doctor' && localStorage.getItem(DOCTOR_ID_KEY) === session.publicId) {
+      localStorage.removeItem(DOCTOR_ID_KEY);
+    }
+    if (role === 'patient' && localStorage.getItem(PATIENT_ID_KEY) === session.publicId) {
+      localStorage.removeItem(PATIENT_ID_KEY);
+    }
   }
   notify();
 }
@@ -121,6 +132,29 @@ function pickString(obj: Record<string, unknown>, keys: string[]): string | unde
   return undefined;
 }
 
+/** AuthService JWT кладёт ProfileId в claim `profile_id` (может быть несколько). */
+function pickProfileIdFromClaims(
+  claims: Record<string, unknown>,
+  publicId?: string,
+): string | undefined {
+  const raw = claims.profile_id ?? claims.profileId ?? claims.pid;
+  const candidates: string[] = [];
+  if (typeof raw === 'string' && raw.length > 0) candidates.push(raw);
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (typeof item === 'string' && item.length > 0) candidates.push(item);
+    }
+  }
+  // Иногда JWT-библиотеки дублируют одноимённые claim'ы иначе — подстрахуемся.
+  for (const key of Object.keys(claims)) {
+    if (key.toLowerCase() !== 'profile_id' && key.toLowerCase() !== 'profileid') continue;
+    const value = claims[key];
+    if (typeof value === 'string' && value.length > 0) candidates.push(value);
+  }
+
+  return candidates.find((id) => id !== publicId);
+}
+
 /**
  * The API contract (contract.txt) only documents "200 OK" for
  * /auth/login, /auth/register and /auth/refresh — the response body shape
@@ -129,6 +163,9 @@ function pickString(obj: Record<string, unknown>, keys: string[]): string | unde
  * (the API uses a Bearer/JWT security scheme) to recover the user's public
  * id and patient profile id from standard-ish claim names, since JWTs are
  * self-describing and don't depend on the wrapper object's shape.
+ *
+ * Важно: `sub` / publicId — это id пользователя, НЕ patient/doctor profileId.
+ * Для рецептов/МК/триажа нужен именно ProfileId (claim `profile_id`).
  */
 export function extractSession(data: unknown): Session | null {
   if (!data || typeof data !== 'object') return null;
@@ -140,11 +177,18 @@ export function extractSession(data: unknown): Session | null {
 
   const claims = decodeJwt<Record<string, unknown>>(accessToken) ?? {};
   const publicId =
-    pickString(obj, ['publicId', 'userId', 'id']) ??
-    pickString(claims, ['publicId', 'sub', 'userId', 'nameid', 'id']);
-  const patientId =
-    pickString(obj, ['patientId', 'doctorId', 'profileId']) ??
-    pickString(claims, ['patientId', 'doctorId', 'profileId', 'pid']);
+    pickString(obj, ['publicId', 'userId']) ??
+    pickString(claims, ['publicId', 'sub', 'userId', 'nameid']);
 
-  return { accessToken, refreshToken, publicId, patientId };
+  // Не берём голый `id` из body — часто это publicId пользователя.
+  const fromBody = pickString(obj, ['patientId', 'doctorId', 'profileId', 'activeProfileId']);
+  const fromClaims =
+    pickString(claims, ['patientId', 'doctorId']) ?? pickProfileIdFromClaims(claims, publicId);
+
+  let profileId = fromBody ?? fromClaims;
+  if (profileId && publicId && profileId === publicId) {
+    profileId = pickProfileIdFromClaims(claims, publicId);
+  }
+
+  return { accessToken, refreshToken, publicId, patientId: profileId };
 }

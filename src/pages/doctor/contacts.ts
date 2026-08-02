@@ -1,11 +1,7 @@
 /**
- * The contract has no "list my patients" or "list my consultations" endpoint
- * for doctors — a doctor only reaches a specific patient through a known
- * `patientId` (e.g. shared via a referral, a triage escalation, or a
- * consultation the doctor has already opened). We keep a small local
- * address-book of patients the doctor has added/interacted with, scoped per
- * doctor account, so the "Пациенты" / "Рабочий стол" screens have something
- * real to list and reopen.
+ * Локальные ярлыки/заметки врача по patientId (имя, кэш сводки).
+ * Сам список «в наблюдении» строится из консультаций и календаря
+ * (`useObservedPatients`) — localStorage только дополняет отображаемые имена.
  */
 export interface DoctorContact {
   patientId: string;
@@ -43,17 +39,28 @@ export function getContact(
 
 export function upsertContact(
   doctorId: string,
-  contact: { patientId: string; label?: string; summary?: string },
+  contact: {
+    patientId: string;
+    label?: string;
+    summary?: string;
+    /** false — не обновлять lastActivityAt (фоновый sync сводки/имени) */
+    touchActivity?: boolean;
+    lastActivityAt?: string;
+  },
 ): DoctorContact {
   const contacts = listContacts(doctorId);
   const now = new Date().toISOString();
   const existingIndex = contacts.findIndex((c) => c.patientId === contact.patientId);
+  const existing = existingIndex >= 0 ? contacts[existingIndex] : undefined;
+  const touch = contact.touchActivity !== false;
   const merged: DoctorContact = {
     patientId: contact.patientId,
-    label: contact.label ?? contacts[existingIndex]?.label ?? `Пациент #${contact.patientId.slice(0, 8)}`,
-    summary: contact.summary ?? contacts[existingIndex]?.summary,
-    addedAt: contacts[existingIndex]?.addedAt ?? now,
-    lastActivityAt: now,
+    label: contact.label ?? existing?.label ?? `Пациент #${contact.patientId.slice(0, 8)}`,
+    summary: contact.summary ?? existing?.summary,
+    addedAt: existing?.addedAt ?? now,
+    lastActivityAt: touch
+      ? (contact.lastActivityAt ?? now)
+      : (contact.lastActivityAt ?? existing?.lastActivityAt ?? now),
   };
 
   if (existingIndex >= 0) {

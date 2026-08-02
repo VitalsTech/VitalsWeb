@@ -15,20 +15,22 @@ function storageKey(patientId: string, doctorId: string) {
 }
 
 /**
- * Doctor chat with a patient.
- * Always uses doctor User.PublicId for consultation.DoctorId so it matches the
- * patient-side session (patient opens chat via /doctors/{publicId}).
+ * Чат врача с пациентом.
+ * `patientId` — Patient ProfileId (не User.PublicId).
+ * DoctorId в сессии: publicId врача (как на стороне пациента при записи через /doctors/{publicId}).
  */
 export function useConsultationChat(
   doctorProfileId: string | null,
-  patientId: string | undefined,
-  /** Открыть конкретную консультацию (например, из календаря) вместо поиска активной. */
+  patientProfileId: string | undefined,
   presetSessionId?: string | null,
+  patientAliases: string[] = [],
 ) {
   const doctorPublicId = getPublicId();
   const doctorIdForSession = doctorPublicId ?? doctorProfileId;
   const key =
-    doctorIdForSession && patientId ? storageKey(patientId, doctorIdForSession) : null;
+    doctorIdForSession && patientProfileId
+      ? storageKey(patientProfileId, doctorIdForSession)
+      : null;
 
   const [sessionId, setSessionId] = useState<string | null>(
     () => presetSessionId ?? (key ? window.localStorage.getItem(key) : null),
@@ -50,11 +52,19 @@ export function useConsultationChat(
   }, []);
 
   useEffect(() => {
-    if (!doctorIdForSession || !patientId || !key) return;
+    if (!doctorIdForSession || !patientProfileId || !key) {
+      setLoading(Boolean(patientProfileId));
+      return;
+    }
     const currentDoctorId = doctorIdForSession;
-    const currentPatientId = patientId;
+    const profilePatientId = patientProfileId;
+    const patientCandidates = [
+      ...new Set([profilePatientId, ...patientAliases].filter(Boolean)),
+    ] as string[];
+    const doctorCandidates = [
+      ...new Set([currentDoctorId, doctorProfileId].filter(Boolean)),
+    ] as string[];
     const storageKeyValue = key;
-    const profileId = doctorProfileId;
     let cancelled = false;
 
     async function init() {
@@ -64,23 +74,29 @@ export function useConsultationChat(
         let id = presetSessionId ?? sessionRef.current;
 
         if (!presetSessionId) {
-          for (const candidate of [currentDoctorId, profileId].filter(Boolean) as string[]) {
-            try {
-              const active = await consultationsApi.getActive(currentPatientId, candidate);
-              const activeId = getConsultationId(active);
-              if (activeId) {
-                id = activeId;
-                break;
+          outer: for (const patientCandidate of patientCandidates) {
+            for (const doctorCandidate of doctorCandidates) {
+              try {
+                const active = await consultationsApi.getActive(
+                  patientCandidate,
+                  doctorCandidate,
+                );
+                const activeId = getConsultationId(active);
+                if (activeId) {
+                  id = activeId;
+                  break outer;
+                }
+              } catch {
+                /* 404 */
               }
-            } catch {
-              /* 404 */
             }
           }
         }
 
         if (!id) {
+          // Новые консультации — строго на Patient ProfileId.
           const created = await consultationsApi.create({
-            patientId: currentPatientId,
+            patientId: profilePatientId,
             doctorId: currentDoctorId,
             consultationType: CONSULTATION_TYPE.chat,
           });
@@ -104,7 +120,15 @@ export function useConsultationChat(
     return () => {
       cancelled = true;
     };
-  }, [doctorIdForSession, doctorProfileId, patientId, key, presetSessionId, loadMessages]);
+  }, [
+    doctorIdForSession,
+    doctorProfileId,
+    patientProfileId,
+    patientAliases.join('|'),
+    key,
+    presetSessionId,
+    loadMessages,
+  ]);
 
   useEffect(() => {
     if (!sessionId) return;

@@ -25,7 +25,8 @@ export function Auth() {
   const [secondName, setSecondName] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [sex, setSex] = useState('Female');
-  const [specialization, setSpecialization] = useState('');
+  /** Routing ищет врача по алиасам therapist / терапевт — каноническое значение для MVP. */
+  const [specialization, setSpecialization] = useState('therapist');
   const [licenseNumber, setLicenseNumber] = useState('');
   const [biography, setBiography] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -67,8 +68,8 @@ export function Auth() {
 
   // Обработчик изменения номера телефона
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let raw = e.target.value;
-    
+    const raw = e.target.value;
+
     // Удаляем все НЕ цифры
     let digits = raw.replace(/\D/g, '');
     
@@ -117,7 +118,13 @@ export function Auth() {
             surename,
             birthDate,
             sex,
-            ...(role === 'doctor' ? { specialization, licenseNumber, biography } : {}),
+            ...(role === 'doctor'
+              ? {
+                  specialization: specialization.trim() || 'therapist',
+                  licenseNumber,
+                  biography,
+                }
+              : {}),
           },
           role,
         );
@@ -241,11 +248,21 @@ export function Auth() {
                     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                       <div>
                         <FieldLabel>Специальность</FieldLabel>
-                        <Input
+                        <Select
                           value={specialization}
                           onChange={(e) => setSpecialization(e.target.value)}
-                          placeholder="Врач-терапевт участковый"
-                        />
+                          required
+                        >
+                          <option value="therapist">therapist (терапевт)</option>
+                          <option value="терапевт">терапевт</option>
+                          <option value="cardiologist">cardiologist</option>
+                          <option value="neurologist">neurologist</option>
+                          <option value="pediatrician">pediatrician</option>
+                        </Select>
+                        <p className="mt-1 text-[12px] text-text-muted">
+                          Для демо routing: therapist / терапевт — иначе assignedDoctorId может быть
+                          пустым.
+                        </p>
                       </div>
                       <div>
                         <FieldLabel>Сертификат специалиста</FieldLabel>

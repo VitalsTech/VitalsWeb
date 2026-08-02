@@ -14,12 +14,23 @@ import type { MedicalRecordEventDto } from '@/api/medicalRecords';
 import {
   prescriptionsApi,
   normalizePrescriptions,
+  normalizePrescriptionStatus,
   getPrescriptionId,
   getPrescriptionStatusLabel,
 } from '@/api/prescriptions';
 import { useTriageSession } from './useTriageSession';
-import { routingApi, normalizeRouteSteps } from '@/api/routing';
-import type { RouteStepDto } from '@/api/routing';
+import {
+  routingApi,
+  normalizeRouteSteps,
+  routeStepTitle,
+  routeStepNumber,
+  labsFromRouteSteps,
+  getRouteDecisionId,
+  getDecisionLabs,
+  getDecisionSpecialty,
+} from '@/api/routing';
+import { labOrdersApi, normalizeLabOrders } from '@/api/labOrders';
+import { consultationsApi, normalizeMine, getConsultationId } from '@/api/consultations';
 
 type MoodPayload = {
   mood?: string;
@@ -157,7 +168,7 @@ function StepDot({ status }: { status: PathStepStatus }) {
 }
 
 export function Home() {
-  const { patientName, patientId } = useAuth();
+  const { patientName, patientId, publicId } = useAuth();
   const navigate = useNavigate();
   const [moodCode, setMoodCode] = useState<MoodCode | null>(null);
   const [savingMood, setSavingMood] = useState(false);
@@ -168,6 +179,7 @@ export function Home() {
     ReturnType<typeof normalizePrescriptions>[number] | null
   >(null);
   const triage = useTriageSession(patientId);
+  const patientAliases = [patientId, publicId].filter(Boolean) as string[];
 
   const history = useAsyncData(
     () => (patientId ? medicalRecordsApi.getHistory(patientId) : Promise.resolve(null)),
@@ -175,8 +187,11 @@ export function Home() {
   );
 
   const prescriptions = useAsyncData(
-    () => (patientId ? prescriptionsApi.listForPatient(patientId) : Promise.resolve(null)),
-    [patientId],
+    () =>
+      patientId
+        ? prescriptionsApi.listForPatientAliases(patientAliases)
+        : Promise.resolve(null),
+    [patientId, publicId],
   );
 
   const activeRouteQuery = useAsyncData(
@@ -187,16 +202,86 @@ export function Home() {
     [patientId],
   );
 
+  const decisionId = getRouteDecisionId(activeRouteQuery.data ?? undefined);
+
+  const decisionQuery = useAsyncData(
+    () => (decisionId ? routingApi.getDecision(decisionId).catch(() => null) : Promise.resolve(null)),
+    [decisionId],
+  );
+
+  const labOrdersQuery = useAsyncData(
+    () =>
+      patientId
+        ? labOrdersApi.listForPatientAliases(patientAliases).catch(() => null)
+        : Promise.resolve(null),
+    [patientId, publicId],
+  );
+
+  const consultationsQuery = useAsyncData(
+    () =>
+      patientId
+        ? consultationsApi.listMine({ includeCompleted: true, limit: 30 }).catch(() => null)
+        : Promise.resolve(null),
+    [patientId],
+  );
+
   const apiRouteSteps = useMemo(
     () => normalizeRouteSteps(activeRouteQuery.data ?? undefined),
     [activeRouteQuery.data],
   );
 
+  const mineConsultations = useMemo(
+    () => normalizeMine(consultationsQuery.data),
+    [consultationsQuery.data],
+  );
+
+  const openConsultation = useMemo(() => {
+    return (
+      mineConsultations.find((c) => {
+        const status = (c.status ?? '').toLowerCase();
+        return status !== 'completed' && status !== 'cancelled' && status !== 'expired';
+      }) ?? null
+    );
+  }, [mineConsultations]);
+
+  const protocolLabs = useMemo(() => {
+    const names = new Set<string>();
+    for (const c of mineConsultations) {
+      for (const name of c.protocol?.labOrders ?? []) {
+        const trimmed = name?.trim();
+        if (trimmed) names.add(trimmed);
+      }
+    }
+    return [...names];
+  }, [mineConsultations]);
+
+  const protocolHasPrescription = useMemo(() => {
+    return mineConsultations.some((c) =>
+      (c.protocol?.prescriptions ?? []).some((line) => Boolean(line?.trim())),
+    );
+  }, [mineConsultations]);
+
+  const hasOpenLabOrders = useMemo(() => {
+    return normalizeLabOrders(labOrdersQuery.data).some((order) => {
+      const status = (order.status ?? '').toLowerCase();
+      return status === 'ordered' || status === 'inprogress';
+    });
+  }, [labOrdersQuery.data]);
+
+  const hasAnyLabOrders = useMemo(
+    () => normalizeLabOrders(labOrdersQuery.data).length > 0,
+    [labOrdersQuery.data],
+  );
+
   const recommendedLabs = useMemo(() => {
+    const fromDecision = getDecisionLabs(decisionQuery.data ?? undefined);
+    if (fromDecision.length > 0) return fromDecision;
     const fromRoute = activeRouteQuery.data?.recommendedLabs;
     if (Array.isArray(fromRoute) && fromRoute.length > 0) return fromRoute;
-    return [];
-  }, [activeRouteQuery.data]);
+    const fromSteps = labsFromRouteSteps(apiRouteSteps);
+    if (fromSteps.length > 0) return fromSteps;
+    return protocolLabs;
+  }, [decisionQuery.data, activeRouteQuery.data, apiRouteSteps, protocolLabs]);
 
   const events = useMemo(() => {
     return [...normalizeHistory(history.data)].sort((a, b) => eventTime(b) - eventTime(a));
@@ -204,50 +289,61 @@ export function Home() {
 
   const latestPath = events.find(isTriagePathEvent);
   const latestPathPayload = latestPath ? parseEventPayload<TriagePayload>(latestPath) : null;
-  const hasConsultation = events.some(isConsultationEvent);
+  const hasConsultation =
+    events.some(isConsultationEvent) ||
+    mineConsultations.length > 0 ||
+    mineConsultations.some((c) => Boolean(c.hasProtocol || c.protocol || c.completedAt));
+  const consultCompleted =
+    mineConsultations.some((c) => {
+      const status = (c.status ?? '').toLowerCase();
+      return status === 'completed' || Boolean(c.hasProtocol || c.protocol);
+    }) || events.some((e) => e.eventType === 'ConsultationCompleted');
   const hasPrescription =
-    events.some(isPrescriptionEvent) || normalizePrescriptions(prescriptions.data).length > 0;
+    events.some(isPrescriptionEvent) ||
+    normalizePrescriptions(prescriptions.data).length > 0 ||
+    protocolHasPrescription;
 
   const specialty =
+    getDecisionSpecialty(decisionQuery.data ?? undefined) ??
     latestPathPayload?.recommendedSpecialization ??
     triage.session?.recommendedSpecialization ??
     null;
 
   const recommendation =
+    decisionQuery.data?.patientMessage ??
+    decisionQuery.data?.recommendation ??
     latestPathPayload?.recommendation ??
     triage.session?.recommendation ??
     triage.session?.recommendationText ??
     null;
 
   const hasTriage =
-    Boolean(latestPath) || triage.hasRouting || Boolean(triage.sessionId && recommendation);
+    Boolean(latestPath) ||
+    triage.hasRouting ||
+    apiRouteSteps.length > 0 ||
+    Boolean(triage.sessionId && recommendation);
+
+  const currentRouteAction = useMemo(() => {
+    if (apiRouteSteps.length === 0) return null;
+    const current = activeRouteQuery.data?.currentStep ?? 1;
+    const step =
+      apiRouteSteps.find((s, i) => routeStepNumber(s, i) === current) ??
+      apiRouteSteps[Math.max(0, current - 1)];
+    return (step?.action ?? step?.type ?? '').toLowerCase() || null;
+  }, [apiRouteSteps, activeRouteQuery.data?.currentStep]);
+
+  const consultationFormat = (
+    decisionQuery.data?.consultationFormat ??
+    ''
+  ).toLowerCase();
+  const isChatConsultation =
+    consultationFormat.includes('chat') ||
+    apiRouteSteps.some((step) =>
+      (step.description ?? '').toLowerCase().includes('чат'),
+    );
 
   const pathSteps = useMemo((): PathStep[] => {
-    if (apiRouteSteps.length > 0) {
-      const currentIndex =
-        typeof activeRouteQuery.data?.currentStepIndex === 'number'
-          ? activeRouteQuery.data.currentStepIndex
-          : apiRouteSteps.findIndex((s) => {
-              const status = String(s.status ?? '').toLowerCase();
-              return status === 'current' || status === 'in_progress' || status === 'active';
-            });
-
-      const statuses = (index: number): PathStepStatus => {
-        const stepStatus = String(apiRouteSteps[index]?.status ?? '').toLowerCase();
-        if (stepStatus === 'done' || stepStatus === 'completed') return 'done';
-        if (index < currentIndex) return 'done';
-        if (index === currentIndex) return 'current';
-        return 'upcoming';
-      };
-
-      return apiRouteSteps.map((step: RouteStepDto, index: number) => ({
-        title: step.title ?? `Шаг ${index + 1}`,
-        description: step.description ?? String(step.type ?? 'Этап маршрута'),
-        status: statuses(index),
-      }));
-    }
-
-    if (!hasTriage) {
+    if (!hasTriage && apiRouteSteps.length === 0) {
       return [
         {
           title: '1. ИИ-триаж',
@@ -272,14 +368,33 @@ export function Home() {
       ];
     }
 
-    const consultDone = hasConsultation;
+    const consultDone =
+      consultCompleted ||
+      apiRouteSteps.some((step) => {
+        const action = (step.action ?? step.type ?? '').toLowerCase();
+        const status = String(step.status ?? '').toLowerCase();
+        return (
+          action === 'consultation' && (status === 'done' || status === 'completed')
+        );
+      });
+
+    const hasLabApiStep = apiRouteSteps.some((step) => {
+      const action = (step.action ?? step.type ?? '').toLowerCase();
+      return action === 'lab.order' || action === 'lab';
+    });
+
+    const labsPending =
+      hasOpenLabOrders ||
+      hasAnyLabOrders ||
+      protocolLabs.length > 0 ||
+      recommendedLabs.length > 0;
+
+    const labsBeforeConsult =
+      !consultDone &&
+      (currentRouteAction === 'lab.order' ||
+        (hasLabApiStep && (activeRouteQuery.data?.currentStep ?? 1) === 1));
+
     const rxDone = hasPrescription;
-
-    const currentIndex = !consultDone ? 1 : !rxDone ? 2 : 3;
-
-    const consultTitle = specialty
-      ? `2. Консультация: ${specialty}`
-      : '2. Консультация врача';
 
     const triageDesc = recommendation
       ? `Завершён · ${recommendation.split('\n')[0].slice(0, 90)}${recommendation.length > 90 ? '…' : ''}`
@@ -287,72 +402,240 @@ export function Home() {
         ? `Завершён · рекомендован специалист: ${specialty}`
         : 'Завершён';
 
-    const statuses = (index: number): PathStepStatus => {
-      if (index < currentIndex) return 'done';
-      if (index === currentIndex) return 'current';
-      return 'upcoming';
+    const built: PathStep[] = [];
+    const push = (title: string, description: string, status: PathStepStatus) => {
+      built.push({
+        title: `${built.length + 1}. ${title}`,
+        description,
+        status,
+      });
     };
 
-    return [
-      {
-        title: '1. ИИ-триаж',
-        description: triageDesc,
-        status: statuses(0),
-      },
-      {
-        title: consultTitle,
-        description: consultDone
-          ? 'Консультация в маршруте'
-          : 'Запишитесь к врачу по рекомендации триажа',
-        status: statuses(1),
-      },
-      {
-        title: '3. Анализы',
-        description: 'Ожидают назначения после приёма',
-        status: statuses(2),
-      },
-      {
-        title: '4. Получение рецепта',
-        description: hasPrescription
+    push('ИИ-триаж', triageDesc, 'done');
+
+    const routeCurrent = activeRouteQuery.data?.currentStep ?? 1;
+
+    if (apiRouteSteps.length > 0) {
+      for (const [index, step] of apiRouteSteps.entries()) {
+        const action = (step.action ?? step.type ?? '').toLowerCase();
+        const stepStatus = String(step.status ?? '').toLowerCase();
+        const number = routeStepNumber(step, index);
+
+        let status: PathStepStatus = 'upcoming';
+        if (stepStatus === 'done' || stepStatus === 'completed') status = 'done';
+        else if (action === 'consultation' && consultDone) status = 'done';
+        else if (number < routeCurrent) status = 'done';
+        else if (number === routeCurrent) status = 'current';
+
+        let description = step.description ?? 'Этап маршрута';
+        if ((action === 'lab.order' || action === 'lab') && hasOpenLabOrders) {
+          description = `${description} · направление оформлено`;
+        }
+        if (action === 'consultation' && consultDone) {
+          description = 'Консультация завершена';
+        } else if (action === 'consultation' && openConsultation) {
+          description = isChatConsultation
+            ? 'Открыт асинхронный чат с врачом'
+            : description;
+        }
+
+        const title =
+          action === 'consultation' && specialty
+            ? `Консультация: ${specialty}`
+            : routeStepTitle(step, index);
+
+        push(title, description, status);
+      }
+    } else if (labsBeforeConsult) {
+      push(
+        'Анализы',
+        hasOpenLabOrders
+          ? 'Есть активные направления — откройте статусы'
+          : `Рекомендовано: ${recommendedLabs.slice(0, 3).join(', ')}${
+              recommendedLabs.length > 3 ? '…' : ''
+            }`,
+        'current',
+      );
+      push(
+        specialty ? `Консультация: ${specialty}` : 'Консультация врача',
+        'После анализов — запись к специалисту',
+        'upcoming',
+      );
+    } else {
+      push(
+        specialty ? `Консультация: ${specialty}` : 'Консультация врача',
+        consultDone
+          ? 'Консультация завершена'
+          : openConsultation
+            ? isChatConsultation
+              ? 'Открыт асинхронный чат с врачом'
+              : 'Консультация в процессе'
+            : isChatConsultation
+              ? 'Врач ответит в асинхронном чате'
+              : 'Запишитесь к врачу по рекомендации триажа',
+        consultDone ? 'done' : 'current',
+      );
+    }
+
+    const alreadyHasLabs = built.some((s) => /анализ/i.test(s.title));
+    if (!alreadyHasLabs && (labsPending || consultDone)) {
+      const labsDesc = hasOpenLabOrders || hasAnyLabOrders
+        ? 'Направления на вкладке «Анализы и рецепты»'
+        : protocolLabs.length > 0
+          ? `Из протокола: ${protocolLabs.slice(0, 3).join(', ')}${
+              protocolLabs.length > 3 ? '…' : ''
+            }`
+          : recommendedLabs.length > 0
+            ? `Рекомендовано: ${recommendedLabs.slice(0, 3).join(', ')}${
+                recommendedLabs.length > 3 ? '…' : ''
+              }`
+            : consultDone
+              ? 'Ожидают назначения после приёма'
+              : 'Ожидают назначения после приёма';
+
+      push(
+        'Анализы',
+        labsDesc,
+        !consultDone
+          ? labsBeforeConsult
+            ? 'current'
+            : 'upcoming'
+          : labsPending && !rxDone
+            ? 'current'
+            : labsPending
+              ? 'done'
+              : 'upcoming',
+      );
+    }
+
+    const alreadyHasRx = built.some((s) => /рецепт/i.test(s.title));
+    if (!alreadyHasRx) {
+      push(
+        'Получение рецепта',
+        rxDone
           ? 'Рецепт оформлен · аптека-партнёр'
           : 'Аптека-партнёр · после назначения врача',
-        status: statuses(3),
-      },
-    ];
+        !consultDone ? 'upcoming' : rxDone ? 'done' : 'current',
+      );
+    }
+
+    // Один «текущий» шаг — первый незавершённый.
+    let sawCurrent = false;
+    return built.map((step) => {
+      if (step.status === 'done') return step;
+      if (!sawCurrent) {
+        sawCurrent = true;
+        return { ...step, status: 'current' as const };
+      }
+      return { ...step, status: 'upcoming' as const };
+    });
   }, [
     apiRouteSteps,
-    activeRouteQuery.data?.currentStepIndex,
+    activeRouteQuery.data?.currentStep,
     hasTriage,
-    hasConsultation,
+    consultCompleted,
     hasPrescription,
+    hasOpenLabOrders,
+    hasAnyLabOrders,
     specialty,
     recommendation,
+    recommendedLabs,
+    protocolLabs,
+    currentRouteAction,
+    openConsultation,
+    isChatConsultation,
   ]);
 
   const currentStepIndex = pathSteps.findIndex((s) => s.status === 'current');
   const activeStepNumber = currentStepIndex >= 0 ? currentStepIndex + 1 : 1;
 
   const cta = useMemo(() => {
+    const currentTitle = pathSteps[currentStepIndex]?.title?.toLowerCase() ?? '';
+
+    if (currentTitle.includes('анализ') || hasOpenLabOrders) {
+      return {
+        label: 'Следующий шаг: анализы и рецепты',
+        action: () => navigate('/patient/labs'),
+      };
+    }
+    if (currentTitle.includes('рецепт')) {
+      return {
+        label: 'Следующий шаг: анализы и рецепты',
+        action: () => navigate('/patient/labs'),
+      };
+    }
+    if (currentTitle.includes('консультац') || currentRouteAction === 'consultation') {
+      if (openConsultation) {
+        const id = getConsultationId(openConsultation);
+        return {
+          label: isChatConsultation
+            ? 'Следующий шаг: открыть чат с врачом'
+            : 'Следующий шаг: открыть консультацию',
+          action: () => navigate(id ? `/patient/consultations/${id}` : '/patient/consultations'),
+        };
+      }
+      if (consultCompleted) {
+        return {
+          label: 'Следующий шаг: анализы и рецепты',
+          action: () => navigate('/patient/labs'),
+        };
+      }
+      if (isChatConsultation) {
+        return {
+          label: 'Следующий шаг: мои консультации',
+          action: () => navigate('/patient/consultations'),
+        };
+      }
+      return {
+        label: specialty
+          ? `Следующий шаг: записаться к ${specialty}`
+          : 'Следующий шаг: записаться к врачу',
+        action: () => navigate('/patient/doctors'),
+      };
+    }
     if (!hasTriage) {
       return { label: 'Следующий шаг: начать ИИ-триаж', action: () => navigate('/patient/triage?new=1') };
     }
     if (!hasConsultation) {
+      if (isChatConsultation) {
+        return {
+          label: 'Следующий шаг: мои консультации',
+          action: () => navigate('/patient/consultations'),
+        };
+      }
       return {
-        label: 'Следующий шаг: записаться к врачу',
+        label: specialty
+          ? `Следующий шаг: записаться к ${specialty}`
+          : 'Следующий шаг: записаться к врачу',
         action: () => navigate('/patient/doctors'),
       };
     }
-    if (!hasPrescription) {
+    if (recommendedLabs.length > 0 || protocolLabs.length > 0 || !hasPrescription) {
       return {
         label: 'Следующий шаг: анализы и рецепты',
         action: () => navigate('/patient/labs'),
       };
     }
     return {
-      label: 'Следующий шаг: активное лечение',
-      action: () => navigate('/patient/treatment'),
+      label: 'Следующий шаг: мои консультации',
+      action: () => navigate('/patient/consultations'),
     };
-  }, [hasTriage, hasConsultation, hasPrescription, navigate]);
+  }, [
+    pathSteps,
+    currentStepIndex,
+    currentRouteAction,
+    hasOpenLabOrders,
+    hasTriage,
+    hasConsultation,
+    hasPrescription,
+    recommendedLabs.length,
+    protocolLabs.length,
+    specialty,
+    navigate,
+    openConsultation,
+    consultCompleted,
+    isChatConsultation,
+  ]);
 
   const latestMoodEvent = useMemo(() => events.find(isMoodEvent) ?? null, [events]);
   const moodMarkedToday = useMemo(() => {
@@ -376,7 +659,7 @@ export function Home() {
     const list = normalizePrescriptions(prescriptions.data);
     return (
       list.find((p) => {
-        const status = (p.status ?? '').toLowerCase();
+        const status = normalizePrescriptionStatus(p.status);
         return status !== 'cancelled' && status !== 'dispensed';
       }) ?? list[0] ?? null
     );
@@ -430,8 +713,8 @@ export function Home() {
         <Card className="p-6">
           <h2 className="text-[20px] font-bold text-text">Ваш маршрут</h2>
           <p className="mt-1 text-[13px] text-text-muted">
-            {hasTriage
-              ? `Активный процесс · шаг ${activeStepNumber} из ${pathSteps.length}`
+            {hasTriage || apiRouteSteps.length > 0
+              ? `Ваш путь · шаг ${activeStepNumber} из ${pathSteps.length}`
               : 'Маршрут начнётся после ИИ-триажа'}
           </p>
 

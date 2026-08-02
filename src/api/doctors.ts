@@ -216,13 +216,18 @@ export function normalizeDoctorCard(doctor: DoctorDto): DoctorDto {
 
 /** Maps GET /users/{publicId} response to doctor card fields. */
 export function normalizeDoctorFromUser(
-  user: (UserDto & { profiles?: Array<{ profileType?: string; data?: Record<string, unknown> }> }) | null | undefined,
+  user: (UserDto & { profiles?: Array<{ profileType?: string; data?: Record<string, unknown>; profileId?: string; id?: string }> }) | null | undefined,
 ): DoctorDto | null {
   if (!user) return null;
+  const doctorProfile = (user.profiles ?? []).find((p) =>
+    (p.profileType ?? '').toLowerCase().includes('doctor'),
+  );
+  const doctorProfileId = doctorProfile?.profileId ?? doctorProfile?.id;
   return normalizeDoctorCard({
     ...user,
     publicId: user.publicId,
-    doctorId: user.publicId,
+    // Для API нужен Doctor ProfileId, не publicId пользователя.
+    doctorId: doctorProfileId ?? user.activeProfileId ?? undefined,
     name: formatUserName(user, 'Врач Vitals'),
   });
 }

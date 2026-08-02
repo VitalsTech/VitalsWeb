@@ -5,9 +5,12 @@ import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { FieldLabel, Input } from '@/components/ui/Input';
+import { AsyncState } from '@/components/AsyncState';
 import { useAuth } from '@/auth/AuthProvider';
 import { medicalRecordsApi } from '@/api/medicalRecords';
-import { listContacts, upsertContact } from './contacts';
+import { resolvePatientIdentity } from '@/lib/resolvePatientId';
+import { upsertContact } from './contacts';
+import { useObservedPatients } from './useObservedPatients';
 
 export function Patients() {
   const { doctorId } = useAuth();
@@ -18,12 +21,12 @@ export function Patients() {
   const [label, setLabel] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [version, setVersion] = useState(0);
 
-  const contacts = listContacts(doctorId).filter((c) =>
+  const { patients, loading, error, reload } = useObservedPatients(doctorId);
+
+  const contacts = patients.filter((c) =>
     c.label.toLowerCase().includes(query.toLowerCase()),
   );
-  void version;
 
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
@@ -31,18 +34,23 @@ export function Patients() {
     setSubmitting(true);
     setFormError(null);
     try {
+      const identity = await resolvePatientIdentity(patientId.trim());
       let summary: string | undefined;
       try {
-        const state = await medicalRecordsApi.getState(patientId.trim());
+        const state = await medicalRecordsApi.getState(identity.profileId);
         summary = state?.summary;
       } catch {
         // Patient state may not exist yet — that's fine, we still add the contact.
       }
-      upsertContact(doctorId, { patientId: patientId.trim(), label: label.trim() || undefined, summary });
+      upsertContact(doctorId, {
+        patientId: identity.profileId,
+        label: label.trim() || identity.fullName || undefined,
+        summary,
+      });
       setPatientId('');
       setLabel('');
       setShowAdd(false);
-      setVersion((v) => v + 1);
+      reload();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Не удалось добавить пациента.');
     } finally {
@@ -54,7 +62,7 @@ export function Patients() {
     <div>
       <PageHeader
         title="Пациенты"
-        description="Список под наблюдением: карточка — просмотр и правки диагноза, документов, рецептов."
+        description="Из ваших консультаций и календаря. Можно добавить пациента вручную по ID."
         actions={<Button onClick={() => setShowAdd((v) => !v)}>Добавить пациента</Button>}
       />
 
@@ -62,8 +70,7 @@ export function Patients() {
         <Card className="mb-6 max-w-[600px] p-6">
           <h3 className="text-[15px] font-semibold text-text">Добавить пациента по ID</h3>
           <p className="mt-1 text-[12px] text-text-muted">
-            Контракт API не предоставляет список пациентов врача — добавьте ID пациента (получен из
-            консультации, направления или триажа), чтобы открыть его карточку.
+            Если общей консультации ещё не было — укажите ID пациента, чтобы закрепить карточку.
           </p>
           <form onSubmit={handleAdd} className="mt-4 flex flex-col gap-4">
             <div>
@@ -110,29 +117,32 @@ export function Patients() {
           <span>Сводка</span>
           <span />
         </div>
-        {contacts.length === 0 ? (
-          <p className="px-6 py-8 text-[14px] text-text-muted">
-            Пациентов пока нет — добавьте первого по ID.
-          </p>
-        ) : (
-          contacts.map((c) => (
-            <div
-              key={c.patientId}
-              className="grid grid-cols-[2fr_1.2fr_2fr_120px] items-center gap-4 border-b border-border px-6 py-5 last:border-b-0"
-            >
-              <span className="text-[14px] font-semibold text-text">{c.label}</span>
-              <span className="text-[14px] text-text-muted">
-                {new Date(c.lastActivityAt).toLocaleDateString('ru-RU')}
-              </span>
-              <span className="truncate text-[14px] text-text-muted">
-                {c.summary ?? 'Сводка появится после консультации'}
-              </span>
-              <Button size="sm" onClick={() => navigate(`/doctor/patients/${c.patientId}`)}>
-                Открыть
-              </Button>
-            </div>
-          ))
-        )}
+        <AsyncState loading={loading} error={error} onRetry={reload}>
+          {contacts.length === 0 ? (
+            <p className="px-6 py-8 text-[14px] text-text-muted">
+              Пациентов пока нет — они появятся из консультаций/календаря или после добавления по
+              ID.
+            </p>
+          ) : (
+            contacts.map((c) => (
+              <div
+                key={c.patientId}
+                className="grid grid-cols-[2fr_1.2fr_2fr_120px] items-center gap-4 border-b border-border px-6 py-5 last:border-b-0"
+              >
+                <span className="text-[14px] font-semibold text-text">{c.label}</span>
+                <span className="text-[14px] text-text-muted">
+                  {new Date(c.lastActivityAt).toLocaleDateString('ru-RU')}
+                </span>
+                <span className="truncate text-[14px] text-text-muted" title={c.summary}>
+                  {c.summary ?? 'Сводка появится после консультации'}
+                </span>
+                <Button size="sm" onClick={() => navigate(`/doctor/patients/${c.patientId}`)}>
+                  Открыть
+                </Button>
+              </div>
+            ))
+          )}
+        </AsyncState>
       </Card>
     </div>
   );

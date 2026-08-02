@@ -9,7 +9,7 @@ import { AsyncState } from '@/components/AsyncState';
 import { useAuth } from '@/auth/AuthProvider';
 import { useAsyncData } from '@/lib/useAsyncData';
 import { notificationsApi, normalizeNotifications } from '@/api/notifications';
-import { listContacts } from './contacts';
+import { useObservedPatients } from './useObservedPatients';
 
 export function Desk() {
   const { doctorId, doctorName } = useAuth();
@@ -17,8 +17,8 @@ export function Desk() {
   const [openId, setOpenId] = useState('');
   const [openError, setOpenError] = useState<string | null>(null);
 
-  const contacts = listContacts(doctorId);
-  const queue = contacts.slice(0, 3);
+  const { patients, loading: patientsLoading, error: patientsError, reload } =
+    useObservedPatients(doctorId);
 
   const { data, loading } = useAsyncData(() => notificationsApi.getHistory(50), []);
   const notifications = normalizeNotifications(data);
@@ -37,13 +37,15 @@ export function Desk() {
     <div>
       <PageHeader
         title="Рабочий стол"
-        description={`${doctorName} · активные консультации, пациенты в наблюдении, новые сообщения.`}
+        description={`${doctorName} · консультации, пациенты из приёмов и календаря, уведомления.`}
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card className="p-5">
           <p className="text-[13px] text-text-muted">Пациентов в наблюдении</p>
-          <p className="mt-2 text-[20px] font-bold text-text">{contacts.length}</p>
+          <p className="mt-2 text-[20px] font-bold text-text">
+            {patientsLoading ? '…' : patients.length}
+          </p>
         </Card>
         <Card className="p-5">
           <p className="text-[13px] text-text-muted">Новых уведомлений</p>
@@ -52,7 +54,9 @@ export function Desk() {
         <Card className="p-5">
           <p className="text-[13px] text-text-muted">Последняя активность</p>
           <p className="mt-2 text-[15px] font-semibold text-text">
-            {contacts[0] ? new Date(contacts[0].lastActivityAt).toLocaleString('ru-RU') : '—'}
+            {patients[0]
+              ? new Date(patients[0].lastActivityAt).toLocaleString('ru-RU')
+              : '—'}
           </p>
         </Card>
       </div>
@@ -60,8 +64,7 @@ export function Desk() {
       <Card className="mt-6 max-w-[600px] p-6">
         <h3 className="text-[15px] font-semibold text-text">Открыть приём по ID пациента</h3>
         <p className="mt-1 text-[12px] text-text-muted">
-          Контракт API не предоставляет очередь ожидания или общий календарь врача — откройте
-          карточку пациента по её ID (из направления, триажа или ранее добавленного пациента).
+          Если пациента ещё нет в списке (нет общей консультации) — откройте карточку по ID.
         </p>
         <form onSubmit={handleOpen} className="mt-4 flex gap-3">
           <Input
@@ -76,32 +79,41 @@ export function Desk() {
       </Card>
 
       <h3 className="mt-8 text-[16px] font-semibold text-text">Пациенты в наблюдении</h3>
-      {queue.length === 0 ? (
-        <Card className="mt-4 p-6">
-          <p className="text-[14px] text-text-muted">
-            Пока нет пациентов — добавьте первого на странице «Пациенты».
-          </p>
-        </Card>
-      ) : (
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {queue.map((c) => (
-            <Card key={c.patientId} className="p-5">
-              <p className="text-[15px] font-semibold text-text">{c.label}</p>
-              <p className="mt-2 text-[13px] text-text-muted">
-                {c.summary ?? 'Сводка появится после консультации'}
-              </p>
-              <Button
-                size="sm"
-                fullWidth
-                className="mt-5"
-                onClick={() => navigate(`/doctor/patients/${c.patientId}`)}
-              >
-                Открыть
-              </Button>
-            </Card>
-          ))}
-        </div>
-      )}
+      <p className="mt-1 text-[13px] text-text-muted">
+        Из ваших консультаций и календаря. Сводка — из протокола последней консультации.
+      </p>
+      <AsyncState loading={patientsLoading} error={patientsError} onRetry={reload}>
+        {patients.length === 0 ? (
+          <Card className="mt-4 p-6">
+            <p className="text-[14px] text-text-muted">
+              Пока нет пациентов из приёмов. Они появятся после записи/чата или добавления на
+              странице «Пациенты».
+            </p>
+          </Card>
+        ) : (
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {patients.map((c) => (
+              <Card key={c.patientId} className="p-5">
+                <p className="text-[15px] font-semibold text-text">{c.label}</p>
+                <p className="mt-2 text-[13px] text-text-muted">
+                  {c.summary ?? 'Сводка появится после консультации'}
+                </p>
+                <p className="mt-2 text-[12px] text-text-muted">
+                  {new Date(c.lastActivityAt).toLocaleString('ru-RU')}
+                </p>
+                <Button
+                  size="sm"
+                  fullWidth
+                  className="mt-5"
+                  onClick={() => navigate(`/doctor/patients/${c.patientId}`)}
+                >
+                  Открыть
+                </Button>
+              </Card>
+            ))}
+          </div>
+        )}
+      </AsyncState>
 
       <h3 className="mt-8 text-[16px] font-semibold text-text">Новые сообщения</h3>
       <Card className="mt-4 p-6">

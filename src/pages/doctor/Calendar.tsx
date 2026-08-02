@@ -433,6 +433,7 @@ export function Calendar() {
           onClose={() => setSelection(null)}
           onToggleAvailability={(slot) => void handleToggleAvailability(slot)}
           onDelete={(slot) => void handleDeleteSlot(slot)}
+          onConsultationCompleted={() => calendarQuery.reload()}
         />
       )}
     </div>

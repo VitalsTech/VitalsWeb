@@ -118,6 +118,26 @@ export const prescriptionsApi = {
     );
   },
 
+  /**
+   * Склейка списков по нескольким id одного пациента
+   * (profileId + legacy publicId после путаницы идентификаторов).
+   */
+  async listForPatientAliases(patientIds: string[]) {
+    const unique = [...new Set(patientIds.map((id) => id.trim()).filter(Boolean))];
+    const chunks = await Promise.all(
+      unique.map((id) => prescriptionsApi.listForPatient(id).catch(() => [] as PrescriptionDto[])),
+    );
+    const byId = new Map<string, PrescriptionDto>();
+    for (const chunk of chunks) {
+      for (const item of normalizePrescriptions(chunk)) {
+        const id = getPrescriptionId(item);
+        if (id) byId.set(id, item);
+        else byId.set(`anon-${byId.size}`, item);
+      }
+    }
+    return [...byId.values()];
+  },
+
   /** Draft → Signed (author only). */
   sign(prescriptionId: string, confirmWarnings = true) {
     return apiRequest<PrescriptionDto>(`/api/v1/prescriptions/${prescriptionId}/sign`, {

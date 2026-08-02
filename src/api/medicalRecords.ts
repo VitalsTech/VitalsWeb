@@ -1,4 +1,4 @@
-import { apiRequest } from './http';
+import { apiRequest, ApiError } from './http';
 
 export interface AppendEventPayload {
   eventType?: string;
@@ -76,6 +76,49 @@ export const medicalRecordsApi = {
 
   getState(patientId: string) {
     return apiRequest<PatientStateDto>(`/api/v1/medical-records/patients/${patientId}/state`);
+  },
+
+  /**
+   * Читает state по всем известным id пациента (profile + public).
+   * 403/404 на одном id не роняет весь запрос — врач с консультацией часто
+   * упирается в рассинхрон publicId/profileId.
+   */
+  async getStateAliases(patientIds: string[]): Promise<PatientStateDto | null> {
+    const unique = [...new Set(patientIds.map((id) => id.trim()).filter(Boolean))];
+    for (const id of unique) {
+      try {
+        const state = await medicalRecordsApi.getState(id);
+        if (state) return state;
+      } catch (error) {
+        if (error instanceof ApiError && (error.status === 403 || error.status === 404)) continue;
+        throw error;
+      }
+    }
+    return null;
+  },
+
+  /**
+   * История по алиасам; при полном 403 возвращает null (не бросает).
+   */
+  async getHistoryAliases(
+    patientIds: string[],
+    params: { from?: string; to?: string; eventTypes?: string } = {},
+  ): Promise<MedicalRecordEventDto[] | PatientHistoryDto | null> {
+    const unique = [...new Set(patientIds.map((id) => id.trim()).filter(Boolean))];
+    let sawForbidden = false;
+    for (const id of unique) {
+      try {
+        return await medicalRecordsApi.getHistory(id, params);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 403) {
+          sawForbidden = true;
+          continue;
+        }
+        if (error instanceof ApiError && error.status === 404) continue;
+        throw error;
+      }
+    }
+    return sawForbidden ? null : null;
   },
 
   getAttachments(patientId: string) {

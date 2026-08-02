@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
@@ -14,8 +14,38 @@ import type { PrescriptionDto } from '@/api/prescriptions';
 import { Modal } from '@/components/ui/Modal';
 import { PrescriptionDetailModal, PrescriptionStatusBadge } from '@/components/PrescriptionDetailModal';
 import { Badge } from '@/components/ui/Badge';
-import { getContact, upsertContact } from './contacts';
-import { routingApi, normalizeRouteSteps } from '@/api/routing';
+import { getContact, removeContact, upsertContact } from './contacts';
+import { consultationsApi, normalizeMine } from '@/api/consultations';
+import {
+  pickLatestConsultation,
+  summaryFromConsultation,
+} from '@/lib/consultationSummary';
+import { patientIdCandidates, resolvePatientIdentity } from '@/lib/resolvePatientId';
+import {
+  triageApi,
+  normalizeTriageSessions,
+  normalizeTriageSession,
+  getSessionId as getTriageSessionId,
+} from '@/api/triage';
+import {
+  routingApi,
+  normalizeRouteSteps,
+  routeStepTitle,
+  routeStepNumber,
+  labsFromRouteSteps,
+  getRouteDecisionId,
+  getDecisionLabs,
+  getDecisionSpecialty,
+} from '@/api/routing';
+import {
+  labOrdersApi,
+  normalizeLabOrders,
+  getLabOrderId,
+  getLabOrderStatusLabel,
+  getLabOrderStatusTone,
+  formatLabOrderItems,
+} from '@/api/labOrders';
+import { formatDayTime } from '@/lib/scheduleSlot';
 
 type Tab = 'overview' | 'diagnoses' | 'prescriptions';
 
@@ -105,26 +135,72 @@ function diagnosesFromHistory(
 }
 
 export function PatientDetail() {
-  const { patientId } = useParams();
+  const { patientId: rawPatientId } = useParams();
   const { doctorId } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('overview');
 
-  const contact = getContact(doctorId, patientId);
+  const identityQuery = useAsyncData(
+    () => (rawPatientId ? resolvePatientIdentity(rawPatientId) : Promise.resolve(null)),
+    [rawPatientId],
+  );
+  const patientId = identityQuery.data?.profileId ?? rawPatientId;
+  const patientAliases = patientIdCandidates(identityQuery.data ?? undefined);
+
+  const contact =
+    getContact(doctorId, patientId) ?? getContact(doctorId, rawPatientId);
 
   const state = useAsyncData(
-    () => (patientId ? medicalRecordsApi.getState(patientId) : Promise.resolve(null)),
-    [patientId],
+    () =>
+      patientId
+        ? medicalRecordsApi.getStateAliases(
+            patientAliases.length > 0 ? patientAliases : [patientId],
+          )
+        : Promise.resolve(null),
+    [patientId, patientAliases.join('|')],
   );
 
+  const mineQuery = useAsyncData(
+    () => consultationsApi.listMine({ includeCompleted: true, limit: 100 }).catch(() => null),
+    [patientId, doctorId],
+  );
+
+  const latestConsultation = pickLatestConsultation(
+    normalizeMine(mineQuery.data),
+    patientId,
+    patientAliases,
+  );
+  const consultationSummary = summaryFromConsultation(latestConsultation);
+  const summaryText =
+    state.data?.summary ??
+    consultationSummary ??
+    contact?.summary ??
+    'Сводка появится после первой консультации.';
+  const headerDescription =
+    state.data?.summary ??
+    consultationSummary ??
+    contact?.summary ??
+    identityQuery.data?.fullName ??
+    `ID пациента: ${patientId ?? '—'}`;
+
   const history = useAsyncData(
-    () => (patientId ? medicalRecordsApi.getHistory(patientId) : Promise.resolve(null)),
-    [patientId],
+    () =>
+      patientId
+        ? medicalRecordsApi.getHistoryAliases(
+            patientAliases.length > 0 ? patientAliases : [patientId],
+          )
+        : Promise.resolve(null),
+    [patientId, patientAliases.join('|')],
   );
 
   const prescriptions = useAsyncData(
-    () => (patientId ? prescriptionsApi.listForPatient(patientId) : Promise.resolve(null)),
-    [patientId],
+    () =>
+      patientId
+        ? prescriptionsApi.listForPatientAliases(
+            patientAliases.length > 0 ? patientAliases : [patientId],
+          )
+        : Promise.resolve(null),
+    [patientId, patientAliases.join('|')],
   );
 
   const activeRoute = useAsyncData(
@@ -135,9 +211,77 @@ export function PatientDetail() {
     [patientId],
   );
 
+  const routeDecisionId = getRouteDecisionId(activeRoute.data ?? undefined);
+
+  const routeDecision = useAsyncData(
+    () =>
+      routeDecisionId
+        ? routingApi.getDecision(routeDecisionId).catch(() => null)
+        : Promise.resolve(null),
+    [routeDecisionId],
+  );
+
+  const labOrders = useAsyncData(
+    () =>
+      patientId
+        ? labOrdersApi.listForPatientAliases(
+            patientAliases.length > 0 ? patientAliases : [patientId],
+          )
+        : Promise.resolve(null),
+    [patientId, patientAliases.join('|')],
+  );
+
+  const triageSessionsQuery = useAsyncData(
+    () =>
+      patientId
+        ? triageApi.listForPatientAliases(
+            patientAliases.length > 0 ? patientAliases : [patientId],
+            5,
+          )
+        : Promise.resolve([]),
+    [patientId, patientAliases.join('|')],
+  );
+  const triageSessions = useMemo(
+    () => normalizeTriageSessions(triageSessionsQuery.data),
+    [triageSessionsQuery.data],
+  );
+  const latestTriageSession = triageSessions[0]
+    ? normalizeTriageSession(triageSessions[0])
+    : null;
+
+  useEffect(() => {
+    const identity = identityQuery.data;
+    if (!identity || !doctorId) return;
+    upsertContact(doctorId, {
+      patientId: identity.profileId,
+      label: identity.fullName,
+    });
+    if (identity.publicId && identity.publicId !== identity.profileId) {
+      removeContact(doctorId, identity.publicId);
+    }
+    if (rawPatientId && rawPatientId !== identity.profileId) {
+      navigate(`/doctor/patients/${identity.profileId}`, { replace: true });
+    }
+  }, [identityQuery.data, doctorId, rawPatientId, navigate]);
+
   const routeSteps = useMemo(
     () => normalizeRouteSteps(activeRoute.data ?? undefined),
     [activeRoute.data],
+  );
+
+  const recommendedLabs = useMemo(() => {
+    const fromDecision = getDecisionLabs(routeDecision.data ?? undefined);
+    if (fromDecision.length > 0) return fromDecision;
+    if (activeRoute.data?.recommendedLabs?.length) return activeRoute.data.recommendedLabs;
+    return labsFromRouteSteps(routeSteps);
+  }, [routeDecision.data, activeRoute.data, routeSteps]);
+
+  const labOrderList = useMemo(
+    () =>
+      normalizeLabOrders(labOrders.data).sort((a, b) =>
+        (b.orderedAt ?? '').localeCompare(a.orderedAt ?? ''),
+      ),
+    [labOrders.data],
   );
 
   const allEvents = normalizeHistory(history.data);
@@ -189,12 +333,8 @@ export function PatientDetail() {
   return (
     <div>
       <PageHeader
-        title={contact?.label ?? 'Пациент'}
-        description={
-          contact?.summary ??
-          state.data?.summary ??
-          `ID пациента: ${patientId ?? '—'}`
-        }
+        title={contact?.label ?? identityQuery.data?.fullName ?? 'Пациент'}
+        description={headerDescription}
         backTo="/doctor/patients"
         backLabel="К списку пациентов"
         actions={
@@ -229,13 +369,21 @@ export function PatientDetail() {
       </div>
 
       {tab === 'overview' && (
-        <AsyncState loading={state.loading || history.loading} error={state.error ?? history.error} onRetry={() => { state.reload(); history.reload(); }}>
+        <AsyncState
+          loading={state.loading || history.loading || mineQuery.loading || identityQuery.loading}
+          error={null}
+          onRetry={() => {
+            state.reload();
+            history.reload();
+            mineQuery.reload();
+            triageSessionsQuery.reload();
+            identityQuery.reload();
+          }}
+        >
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Card className="p-6">
               <h3 className="text-[16px] font-semibold text-text">Сводка</h3>
-              <p className="mt-3 text-[14px] text-text-muted">
-                {state.data?.summary ?? 'Сводка появится после первой консультации.'}
-              </p>
+              <p className="mt-3 text-[14px] text-text-muted">{summaryText}</p>
               <p className="mt-3 text-[13px] text-text-muted">
                 Аллергии: {state.data?.allergies ?? 'не указаны'}. Группа крови:{' '}
                 {state.data?.bloodType ?? 'не указана'}
@@ -301,50 +449,100 @@ export function PatientDetail() {
                 <div>
                   <h3 className="text-[16px] font-semibold text-text">Результат ИИ-триажа</h3>
                   <p className="mt-1 text-[13px] text-text-muted">
-                    Последний маршрут из медкарты пациента
+                    Из triage sessions / медкарты · календарь уже отдаёт triage в слотах
                   </p>
                 </div>
-                {urgencyLabel(latestTriage?.urgencyLevel) && (
-                  <Badge tone={Number(latestTriage?.urgencyLevel) >= 4 ? 'warning' : 'accent'}>
-                    {urgencyLabel(latestTriage?.urgencyLevel)}
+                {urgencyLabel(
+                  latestTriageSession?.urgencyLevel ?? latestTriage?.urgencyLevel,
+                ) && (
+                  <Badge
+                    tone={
+                      Number(latestTriageSession?.urgencyLevel ?? latestTriage?.urgencyLevel) >= 4
+                        ? 'warning'
+                        : 'accent'
+                    }
+                  >
+                    {urgencyLabel(
+                      latestTriageSession?.urgencyLevel ?? latestTriage?.urgencyLevel,
+                    )}
                   </Badge>
                 )}
               </div>
 
-              {!latestTriageEvent ? (
+              {triageSessions.length > 0 && (
+                <div className="mt-4 flex flex-col gap-2 border-b border-border pb-4">
+                  {triageSessions.map((s) => {
+                    const id = getTriageSessionId(s);
+                    const n = normalizeTriageSession(s);
+                    return (
+                      <div
+                        key={id ?? String(s.status)}
+                        className="flex flex-wrap items-center justify-between gap-2 text-[13px]"
+                      >
+                        <span className="text-text">
+                          {n?.recommendation?.slice(0, 80) ||
+                            n?.recommendedSpecialization ||
+                            'Сессия триажа'}
+                          {n?.recommendation && (n.recommendation.length ?? 0) > 80 ? '…' : ''}
+                        </span>
+                        <span className="text-text-muted">
+                          {n?.status ?? '—'}
+                          {n?.urgencyLevel != null ? ` · срочность ${n.urgencyLevel}` : ''}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {!latestTriageEvent && !latestTriageSession ? (
                 <p className="mt-4 text-[14px] text-text-muted">
-                  Результат триажа пока отсутствует — пациент ещё не завершил ИИ-триаж или событие не
-                  попало в медкарту.
+                  Результат триажа пока отсутствует — пациент ещё не завершил ИИ-триаж или нет доступа
+                  к сессиям.
                 </p>
               ) : (
                 <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr]">
                   <div className="rounded-md border border-border bg-surface-muted px-4 py-4">
                     <p className="text-[12px] font-semibold text-text-muted">Специализация</p>
                     <p className="mt-1 text-[14px] font-semibold text-text">
-                      {latestTriage?.recommendedSpecialization ?? 'Терапевт'}
+                      {latestTriageSession?.recommendedSpecialization ??
+                        latestTriageSession?.assignedDoctorName ??
+                        latestTriage?.recommendedSpecialization ??
+                        'Терапевт'}
                     </p>
                     <p className="mt-4 text-[12px] font-semibold text-text-muted">Дата</p>
                     <p className="mt-1 text-[13px] text-text">
-                      {formatEventWhen(latestTriageEvent.occurredAt ?? latestTriageEvent.createdAt)}
+                      {latestTriageEvent
+                        ? formatEventWhen(
+                            latestTriageEvent.occurredAt ?? latestTriageEvent.createdAt,
+                          )
+                        : '—'}
                     </p>
-                    {latestTriage?.sessionId && (
+                    {(getTriageSessionId(latestTriageSession) || latestTriage?.sessionId) && (
                       <>
                         <p className="mt-4 text-[12px] font-semibold text-text-muted">Сессия</p>
                         <p className="mt-1 break-all text-[12px] text-text-muted">
-                          {latestTriage.sessionId}
+                          {getTriageSessionId(latestTriageSession) ?? latestTriage?.sessionId}
                         </p>
                       </>
                     )}
                   </div>
                   <div>
                     <p className="text-[12px] font-semibold text-text-muted">Рекомендация</p>
-                    {latestTriage?.recommendation ? (
+                    {latestTriageSession?.recommendation || latestTriage?.recommendation ? (
                       <p className="mt-2 whitespace-pre-wrap text-[14px] text-text">
-                        {latestTriage.recommendation}
+                        {latestTriageSession?.recommendation ?? latestTriage?.recommendation}
                       </p>
                     ) : (
                       <p className="mt-2 text-[14px] text-text-muted">
-                        Текст рекомендации в событии не сохранён.
+                        Текст рекомендации пока не сохранён.
+                      </p>
+                    )}
+                    {(latestTriageSession?.recommendedLabs?.length ?? 0) > 0 && (
+                      <p className="mt-3 text-[13px] text-text-muted">
+                        Анализы:{' '}
+                        {latestTriageSession!.recommendedLabs!.slice(0, 5).join(', ')}
+                        {(latestTriageSession!.recommendedLabs!.length ?? 0) > 5 ? '…' : ''}
                       </p>
                     )}
                     {(latestTriage?.route?.length ?? 0) > 0 && (
@@ -367,7 +565,10 @@ export function PatientDetail() {
             <Card className="p-6 lg:col-span-2">
               <h3 className="text-[16px] font-semibold text-text">Активный маршрут</h3>
               <p className="mt-1 text-[13px] text-text-muted">
-                Данные из routing API · triage → консультация → анализы
+                Триаж → routing → консультация / анализы
+                {getDecisionSpecialty(routeDecision.data ?? undefined)
+                  ? ` · ${getDecisionSpecialty(routeDecision.data ?? undefined)}`
+                  : ''}
               </p>
               {routeSteps.length === 0 ? (
                 <p className="mt-4 text-[14px] text-text-muted">
@@ -375,29 +576,89 @@ export function PatientDetail() {
                 </p>
               ) : (
                 <ol className="mt-4 flex flex-col gap-2">
-                  {routeSteps.map((step, index) => (
-                    <li key={`${step.title}-${index}`} className="flex items-center gap-3 text-[14px] text-text">
-                      <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary text-[12px] font-bold text-primary-foreground">
-                        {index + 1}
-                      </span>
-                      <div>
-                        <p className="font-semibold">{step.title ?? `Шаг ${index + 1}`}</p>
-                        {step.description ? (
-                          <p className="text-[13px] text-text-muted">{step.description}</p>
-                        ) : null}
-                      </div>
-                    </li>
-                  ))}
+                  {routeSteps.map((step, index) => {
+                    const number = routeStepNumber(step, index);
+                    const current = activeRoute.data?.currentStep ?? 1;
+                    const isCurrent = number === current;
+                    return (
+                      <li
+                        key={`${routeStepTitle(step, index)}-${number}`}
+                        className="flex items-center gap-3 text-[14px] text-text"
+                      >
+                        <span
+                          className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${
+                            isCurrent
+                              ? 'bg-primary text-primary-foreground'
+                              : number < current
+                                ? 'bg-success text-primary-foreground'
+                                : 'border border-border bg-surface text-text-muted'
+                          }`}
+                        >
+                          {number}
+                        </span>
+                        <div>
+                          <p className="font-semibold">
+                            {routeStepTitle(step, index)}
+                            {isCurrent ? ' · сейчас' : ''}
+                          </p>
+                          {step.description ? (
+                            <p className="text-[13px] text-text-muted">{step.description}</p>
+                          ) : null}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ol>
               )}
-              {(activeRoute.data?.recommendedLabs?.length ?? 0) > 0 && (
+              {recommendedLabs.length > 0 && (
                 <div className="mt-4 rounded-md border border-border bg-surface-muted px-4 py-3">
-                  <p className="text-[12px] font-semibold text-text">Рекомендованные анализы</p>
+                  <p className="text-[12px] font-semibold text-text">
+                    Рекомендованные анализы (routing decision)
+                  </p>
                   <ul className="mt-2 list-inside list-disc text-[13px] text-text-muted">
-                    {activeRoute.data!.recommendedLabs!.map((lab) => (
+                    {recommendedLabs.map((lab) => (
                       <li key={lab}>{lab}</li>
                     ))}
                   </ul>
+                </div>
+              )}
+              {routeDecision.data?.patientMessage && (
+                <p className="mt-3 text-[13px] text-text-muted">
+                  {routeDecision.data.patientMessage}
+                </p>
+              )}
+            </Card>
+
+            <Card className="p-6 lg:col-span-2">
+              <h3 className="text-[16px] font-semibold text-text">Направления на анализы</h3>
+              <p className="mt-1 text-[13px] text-text-muted">
+                Lab-orders пациента · статусы Ordered / InProgress / Completed
+              </p>
+              {labOrderList.length === 0 ? (
+                <p className="mt-4 text-[14px] text-text-muted">
+                  Направлений пока нет. Они создаются при завершении консультации с анализами.
+                </p>
+              ) : (
+                <div className="mt-4 flex flex-col gap-3">
+                  {labOrderList.map((order) => (
+                    <div
+                      key={getLabOrderId(order)}
+                      className="flex items-start justify-between gap-3 rounded-md border border-border px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[14px] font-semibold text-text">
+                          {formatLabOrderItems(order)}
+                        </p>
+                        <p className="mt-1 text-[12px] text-text-muted">
+                          {order.orderedAt ? formatDayTime(order.orderedAt) : '—'}
+                          {order.consultationId ? ' · из консультации' : ''}
+                        </p>
+                      </div>
+                      <Badge tone={getLabOrderStatusTone(order.status)}>
+                        {getLabOrderStatusLabel(order.status)}
+                      </Badge>
+                    </div>
+                  ))}
                 </div>
               )}
             </Card>
@@ -428,7 +689,7 @@ export function PatientDetail() {
         <DiagnosesTab
           diagnoses={diagnoses}
           loading={history.loading}
-          error={history.error}
+          error={null}
           onRetry={history.reload}
           onToggle={toggleDiagnosis}
           onAdded={history.reload}

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
@@ -9,6 +10,11 @@ import type {
 } from '@/api/doctors';
 import { formatConsultationType } from '@/api/consultations';
 import {
+  triageApi,
+  normalizeTriageSession,
+  getSessionId as getTriageSessionId,
+} from '@/api/triage';
+import {
   formatDayLabel,
   formatDayTime,
   formatSlotRange,
@@ -17,6 +23,59 @@ import {
   slotStatus,
 } from '@/lib/scheduleSlot';
 import { urgencyLabel, urgencyTone } from '@/lib/urgency';
+import { useAuth } from '@/auth/AuthProvider';
+import { useAsyncData } from '@/lib/useAsyncData';
+import { patientIdCandidates, resolvePatientIdentity } from '@/lib/resolvePatientId';
+import { upsertContact } from './contacts';
+import { CompleteConsultationModal } from './CompleteConsultationModal';
+
+function mapSessionToCalendarTriage(
+  session: ReturnType<typeof normalizeTriageSession>,
+): DoctorCalendarTriageDto | null {
+  if (!session) return null;
+  const level = session.urgencyLevel;
+  return {
+    sessionId: getTriageSessionId(session),
+    status: session.status,
+    urgencyLevel: level,
+    urgency: session.urgency,
+    urgencyLabel:
+      level == null
+        ? null
+        : level >= 5
+          ? 'Экстренно'
+          : level >= 4
+            ? 'Срочно'
+            : level >= 3
+              ? 'В течение суток'
+              : level >= 2
+                ? 'Плановое обращение'
+                : 'Самонаблюдение',
+    recommendedSpecialization: session.recommendedSpecialization,
+    recommendation: session.recommendation ?? session.recommendationText,
+    canBeRemote: session.canBeRemote,
+    complaints: (() => {
+      const patientMsg = session.messages?.find((m) =>
+        String(m.role ?? m.from ?? m.sender ?? '')
+          .toLowerCase()
+          .includes('patient'),
+      );
+      return patientMsg?.content ?? patientMsg?.text ?? patientMsg?.message ?? null;
+    })(),
+    symptoms: [],
+    hypotheses: (session.hypotheses ?? session.latestAssessment?.llmResult?.hypotheses ?? []).map(
+      (h) => ({
+        condition: h.condition ?? '—',
+        probability: h.probability,
+      }),
+    ),
+    emergencyWarning: Boolean(
+      (session.latestAssessment?.llmResult as { emergencyWarning?: boolean } | undefined)
+        ?.emergencyWarning,
+    ),
+    createdAt: typeof session.createdAt === 'string' ? session.createdAt : undefined,
+  };
+}
 
 export interface CalendarSelection {
   /** Отсутствует для консультаций вне сетки расписания. */
@@ -129,19 +188,61 @@ export function CalendarSlotDetails({
   onClose,
   onToggleAvailability,
   onDelete,
+  onConsultationCompleted,
   busy = false,
 }: {
   selection: CalendarSelection;
   onClose: () => void;
   onToggleAvailability?: (slot: DoctorCalendarSlotDto) => void;
   onDelete?: (slot: DoctorCalendarSlotDto) => void;
+  onConsultationCompleted?: () => void;
   busy?: boolean;
 }) {
   const navigate = useNavigate();
+  const { doctorId } = useAuth();
+  const [completeOpen, setCompleteOpen] = useState(false);
   const { slot, consultation } = selection;
   const status = slot ? slotStatus(slot) : 'booked';
-  const triage = consultation?.triage;
+  const rawPatientId = consultation?.patient?.patientId;
+
+  const triageFallback = useAsyncData(async () => {
+    if (consultation?.triage || !rawPatientId) return null;
+    const identity = await resolvePatientIdentity(rawPatientId);
+    const aliases = patientIdCandidates(identity);
+    const sessions = await triageApi.listForPatientAliases(aliases, 1);
+    return mapSessionToCalendarTriage(normalizeTriageSession(sessions[0]));
+  }, [rawPatientId, Boolean(consultation?.triage)]);
+
+  const triage = consultation?.triage ?? triageFallback.data ?? null;
   const anamnesis = consultation?.anamnesis;
+  const sessionId = consultation?.sessionId;
+
+  async function rememberAndOpen(path: 'chat' | 'card') {
+    const rawId = consultation?.patient?.patientId;
+    if (!rawId) return;
+    const identity = await resolvePatientIdentity(rawId);
+    if (doctorId) {
+      upsertContact(doctorId, {
+        patientId: identity.profileId,
+        label: consultation?.patient?.fullName?.trim() || identity.fullName,
+        summary: triage?.recommendation?.trim() || triage?.complaints?.trim() || undefined,
+      });
+    }
+    if (path === 'chat') {
+      navigate(
+        `/doctor/patients/${identity.profileId}/chat${
+          sessionId ? `?sessionId=${sessionId}` : ''
+        }`,
+      );
+      return;
+    }
+    navigate(`/doctor/patients/${identity.profileId}`);
+  }
+
+  const canComplete =
+    Boolean(sessionId) &&
+    (consultation?.status ?? '').toLowerCase() !== 'completed' &&
+    (consultation?.status ?? '').toLowerCase() !== 'doctorleft';
   const badge = consultation
     ? urgencyLabel(triage?.urgencyLabel, triage?.urgency, triage?.urgencyLevel ?? consultation.urgencyLevel)
     : null;
@@ -184,6 +285,8 @@ export function CalendarSlotDetails({
 
       {triage ? (
         <TriageBlock triage={triage} />
+      ) : consultation && triageFallback.loading ? (
+        <p className="mt-5 text-[13px] text-text-muted">Загрузка триажа…</p>
       ) : consultation ? (
         <p className="mt-5 text-[13px] text-text-muted">Данных триажа нет.</p>
       ) : null}
@@ -209,21 +312,15 @@ export function CalendarSlotDetails({
       <div className="mt-6 flex flex-wrap gap-3">
         {consultation?.patient?.patientId && (
           <>
-            <Button
-              onClick={() =>
-                navigate(
-                  `/doctor/patients/${consultation.patient?.patientId}/chat${
-                    consultation.sessionId ? `?sessionId=${consultation.sessionId}` : ''
-                  }`,
-                )
-              }
-            >
+            <Button onClick={() => void rememberAndOpen('chat')}>
               Открыть чат консультации
             </Button>
-            <Button
-              variant="secondary"
-              onClick={() => navigate(`/doctor/patients/${consultation.patient?.patientId}`)}
-            >
+            {canComplete && (
+              <Button variant="secondary" onClick={() => setCompleteOpen(true)}>
+                Завершить консультацию
+              </Button>
+            )}
+            <Button variant="secondary" onClick={() => void rememberAndOpen('card')}>
               Карта пациента
             </Button>
           </>
@@ -241,6 +338,19 @@ export function CalendarSlotDetails({
           </Button>
         )}
       </div>
+
+      {completeOpen && sessionId && (
+        <CompleteConsultationModal
+          sessionId={sessionId}
+          patientId={consultation?.patient?.patientId}
+          onClose={() => setCompleteOpen(false)}
+          onCompleted={() => {
+            setCompleteOpen(false);
+            onConsultationCompleted?.();
+            onClose();
+          }}
+        />
+      )}
     </Modal>
   );
 }
