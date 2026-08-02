@@ -1,12 +1,23 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
 import { AsyncState } from '@/components/AsyncState';
+import {
+  PrescriptionDetailModal,
+  PrescriptionStatusBadge,
+} from '@/components/PrescriptionDetailModal';
 import { useAuth } from '@/auth/AuthProvider';
 import { useAsyncData } from '@/lib/useAsyncData';
 import { medicalRecordsApi, normalizeHistory } from '@/api/medicalRecords';
-import { prescriptionsApi, normalizePrescriptions, getPrescriptionId } from '@/api/prescriptions';
+import {
+  prescriptionsApi,
+  normalizePrescriptions,
+  getPrescriptionId,
+  normalizePrescriptionStatus,
+  canShowPrescriptionQr,
+} from '@/api/prescriptions';
+import type { PrescriptionDto } from '@/api/prescriptions';
 
 const EVENT_LABELS: Record<string, string> = {
   triage_session: 'ИИ-триаж',
@@ -17,10 +28,18 @@ const EVENT_LABELS: Record<string, string> = {
   house_call_request: 'Вызов врача на дом',
 };
 
-const PENDING_STATUSES = new Set(['draft', 'pending', 'created']);
+const WAITING_STATUSES = new Set([
+  'draft',
+  'pending',
+  'created',
+  'signed',
+  'sent_to_pharmacy',
+  'partially_fulfilled',
+]);
 
 export function Treatment() {
   const { patientId } = useAuth();
+  const [selected, setSelected] = useState<PrescriptionDto | null>(null);
 
   const history = useAsyncData(
     () => (patientId ? medicalRecordsApi.getHistory(patientId) : Promise.resolve(null)),
@@ -34,8 +53,8 @@ export function Treatment() {
   const events = normalizeHistory(history.data);
   const allPrescriptions = normalizePrescriptions(prescriptions.data);
   const waitingPrescriptions = allPrescriptions.filter((p) => {
-    const status = (p.status ?? '').toLowerCase();
-    return status === '' || PENDING_STATUSES.has(status);
+    const status = normalizePrescriptionStatus(p.status);
+    return status === '' || WAITING_STATUSES.has(status);
   });
 
   return (
@@ -81,22 +100,36 @@ export function Treatment() {
               {waitingPrescriptions.length === 0 ? (
                 <p className="text-[13px] text-text-muted">Активных назначений пока нет.</p>
               ) : (
-                waitingPrescriptions.map((p) => (
-                  <div
-                    key={getPrescriptionId(p)}
-                    className="flex items-center justify-between gap-4 rounded-md border border-border px-4 py-4"
-                  >
-                    <div>
-                      <p className="text-[15px] font-semibold text-text">
-                        {p.diagnosisForPrescription ?? 'Назначение врача'}
-                      </p>
-                      <p className="mt-1 text-[13px] text-text-muted">{p.status ?? 'ожидает обработки'}</p>
-                    </div>
-                    <Button size="sm" className="flex-shrink-0" disabled>
-                      Открыть
-                    </Button>
-                  </div>
-                ))
+                waitingPrescriptions.map((p) => {
+                  const med = p.medications?.[0];
+                  const scheme = [med?.dosage, med?.frequency].filter(Boolean).join(' · ');
+                  return (
+                    <button
+                      key={getPrescriptionId(p)}
+                      type="button"
+                      onClick={() => setSelected(p)}
+                      className="flex w-full items-start justify-between gap-4 rounded-md border border-border px-4 py-4 text-left transition-colors hover:border-accent hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[15px] font-semibold text-text">
+                          {med?.tradeName ?? p.diagnosisForPrescription ?? 'Назначение врача'}
+                        </p>
+                        {scheme ? (
+                          <p className="mt-1 text-[13px] text-text-muted">{scheme}</p>
+                        ) : null}
+                        {canShowPrescriptionQr(p.status) ? (
+                          <p className="mt-2 text-[12px] font-semibold text-primary">Открыть · QR доступен</p>
+                        ) : (
+                          <p className="mt-2 text-[12px] text-text-muted">Открыть подробности</p>
+                        )}
+                      </div>
+                      <div className="flex flex-shrink-0 flex-col items-end gap-2">
+                        <PrescriptionStatusBadge status={p.status} />
+                        <span className="text-[13px] font-semibold text-text">Открыть →</span>
+                      </div>
+                    </button>
+                  );
+                })
               )}
             </AsyncState>
           </div>
@@ -123,6 +156,15 @@ export function Treatment() {
           </Link>
         </div>
       </Card>
+
+      {selected && (
+        <PrescriptionDetailModal
+          prescription={selected}
+          variant="patient"
+          onClose={() => setSelected(null)}
+          onUpdated={prescriptions.reload}
+        />
+      )}
     </div>
   );
 }

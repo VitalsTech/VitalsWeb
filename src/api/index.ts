@@ -6,4 +6,6 @@ export * from './triage';
 export * from './consultations';
 export * from './medicalRecords';
 export * from './prescriptions';
+export * from './labOrders';
 export * from './notifications';
+export * from './routing';

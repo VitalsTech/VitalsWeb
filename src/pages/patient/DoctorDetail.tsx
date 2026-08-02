@@ -4,15 +4,17 @@ import { Card } from '@/components/ui/Card';
 import { ButtonLink } from '@/components/ui/Button';
 import { AsyncState } from '@/components/AsyncState';
 import { useAsyncData } from '@/lib/useAsyncData';
-import { doctorsApi, formatDoctorName, formatDoctorSpecialty } from '@/api/doctors';
+import { doctorsApi, normalizeDoctorFromUser, formatDoctorName, formatDoctorSpecialty, getDoctorBiography } from '@/api/doctors';
+import { DoctorBioBlock } from '@/components/DoctorBioBlock';
 
 export function DoctorDetail() {
   const { id } = useParams();
 
-  const { data: doctor, loading, error, reload } = useAsyncData(
+  const { data: rawDoctor, loading, error, reload } = useAsyncData(
     () => (id ? doctorsApi.get(id) : Promise.reject(new Error('Не указан врач'))),
     [id],
   );
+  const doctor = normalizeDoctorFromUser(rawDoctor as Parameters<typeof normalizeDoctorFromUser>[0]);
 
   return (
     <div>
@@ -31,10 +33,7 @@ export function DoctorDetail() {
         {doctor && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Card className="p-6">
-              <h3 className="text-[16px] font-semibold text-text">О враче</h3>
-              <p className="mt-3 text-[14px] text-text-muted">
-                {doctor.bio ?? doctor.description ?? 'Информация о враче уточняется.'}
-              </p>
+              <DoctorBioBlock biography={getDoctorBiography(doctor)} />
               <p className="mt-5 text-[14px] text-text">
                 {doctor.schedule && <>Расписание: {doctor.schedule} · </>}
                 Онлайн-консультации: {doctor.onlineAvailable ? 'да' : 'нет'}

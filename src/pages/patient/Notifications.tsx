@@ -1,9 +1,30 @@
+import { useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { AsyncState } from '@/components/AsyncState';
 import { useAsyncData } from '@/lib/useAsyncData';
-import { notificationsApi, normalizeNotifications } from '@/api/notifications';
+import {
+  notificationsApi,
+  normalizeNotifications,
+  notificationCategory,
+  type NotificationCategory,
+} from '@/api/notifications';
+import type { NotificationDto } from '@/api/notifications';
+
+const CATEGORY_TABS: [NotificationCategory, string][] = [
+  ['all', 'Все'],
+  ['booking', 'Записи'],
+  ['triage', 'Триаж'],
+  ['mood', 'Самочувствие'],
+  ['message', 'Сообщения'],
+  ['schedule', 'Расписание'],
+];
+
+function matchesCategory(item: NotificationDto, category: NotificationCategory): boolean {
+  if (category === 'all') return true;
+  return notificationCategory(item) === category;
+}
 
 function formatDate(item: { createdAt?: string; sentAt?: string }) {
   const raw = item.sentAt ?? item.createdAt;
@@ -13,18 +34,38 @@ function formatDate(item: { createdAt?: string; sentAt?: string }) {
   return date.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
+function showUnreadBadge(item: NotificationDto) {
+  return item.isRead === false || item.read === false;
+}
+
 export function Notifications() {
+  const [category, setCategory] = useState<NotificationCategory>('all');
   const { data, loading, error, reload } = useAsyncData(() => notificationsApi.getHistory(50), []);
-  const notifications = normalizeNotifications(data);
+  const notifications = normalizeNotifications(data).filter((n) => matchesCategory(n, category));
 
   return (
     <div>
-      <PageHeader title="Уведомления" description="Хронология событий с главной страницы" />
+      <PageHeader title="Уведомления" description="Хронология событий и напоминания" />
+
+      <div className="mb-6 flex flex-wrap gap-2">
+        {CATEGORY_TABS.map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setCategory(key)}
+            className={`h-10 rounded-full px-4 text-[13px] font-semibold transition-colors ${
+              category === key ? 'bg-accent text-[#11442f]' : 'bg-surface-muted text-text'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
       <AsyncState loading={loading} error={error} onRetry={reload}>
         {notifications.length === 0 ? (
           <Card className="p-6">
-            <p className="text-[14px] text-text-muted">Пока нет уведомлений.</p>
+            <p className="text-[14px] text-text-muted">Уведомлений в этой категории пока нет.</p>
           </Card>
         ) : (
           <div className="flex flex-col gap-4">
@@ -34,11 +75,12 @@ export function Notifications() {
                   <p className="text-[15px] font-semibold text-text">
                     {item.title ?? item.message ?? 'Уведомление'}
                   </p>
-                  <p className="mt-1 text-[13px] text-text-muted">{formatDate(item)}</p>
+                  <p className="mt-1 text-[13px] text-text-muted">
+                    {item.message && item.message !== item.title ? item.message : ''}{' '}
+                    {formatDate(item)}
+                  </p>
                 </div>
-                {item.isRead === false || item.read === false ? (
-                  <Badge tone="success">новое</Badge>
-                ) : null}
+                {showUnreadBadge(item) ? <Badge tone="success">новое</Badge> : null}
               </Card>
             ))}
           </div>

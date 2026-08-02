@@ -1,7 +1,8 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '@/auth/AuthProvider';
 import { PatientLayout } from '@/layouts/PatientLayout';
-import { Auth } from '@/pages/patient/Auth';
+import { DoctorLayout } from '@/layouts/DoctorLayout';
+import { Auth } from '@/pages/Auth';
 import { Home } from '@/pages/patient/Home';
 import { Triage } from '@/pages/patient/Triage';
 import { TriageResult } from '@/pages/patient/TriageResult';
@@ -13,6 +14,8 @@ import { Doctors } from '@/pages/patient/Doctors';
 import { DoctorDetail } from '@/pages/patient/DoctorDetail';
 import { DoctorChat } from '@/pages/patient/DoctorChat';
 import { DoctorBook } from '@/pages/patient/DoctorBook';
+import { MyConsultations } from '@/pages/patient/MyConsultations';
+import { ConsultationSession } from '@/pages/patient/ConsultationSession';
 import { HouseCall } from '@/pages/patient/HouseCall';
 import { Treatment } from '@/pages/patient/Treatment';
 import { Labs } from '@/pages/patient/Labs';
@@ -20,13 +23,20 @@ import { Notifications } from '@/pages/patient/Notifications';
 import { Support } from '@/pages/patient/Support';
 import { Profile } from '@/pages/patient/Profile';
 import { ProfileEdit } from '@/pages/patient/ProfileEdit';
+import { Desk } from '@/pages/doctor/Desk';
+import { Calendar } from '@/pages/doctor/Calendar';
+import { Patients } from '@/pages/doctor/Patients';
+import { PatientDetail } from '@/pages/doctor/PatientDetail';
+import { PatientChat } from '@/pages/doctor/PatientChat';
+import { DoctorProfile } from '@/pages/doctor/DoctorProfile';
+import { Notifications as DoctorNotifications } from '@/pages/doctor/Notifications';
 
 export default function App() {
   return (
     <AuthProvider>
       <Routes>
-        <Route path="/" element={<Navigate to="/patient/auth" replace />} />
-        <Route path="/patient/auth" element={<Auth />} />
+        <Route path="/" element={<Navigate to="/auth" replace />} />
+        <Route path="/auth" element={<Auth />} />
 
         <Route path="/patient" element={<PatientLayout />}>
           <Route index element={<Home />} />
@@ -44,6 +54,9 @@ export default function App() {
           <Route path="doctors/:id/chat" element={<DoctorChat />} />
           <Route path="doctors/:id/book" element={<DoctorBook />} />
 
+          <Route path="consultations" element={<MyConsultations />} />
+          <Route path="consultations/:sessionId" element={<ConsultationSession />} />
+
           <Route path="house-call" element={<HouseCall />} />
           <Route path="treatment" element={<Treatment />} />
           <Route path="labs" element={<Labs />} />
@@ -52,6 +65,19 @@ export default function App() {
           <Route path="support" element={<Support />} />
           <Route path="profile" element={<Profile />} />
           <Route path="profile/edit" element={<ProfileEdit />} />
+        </Route>
+
+        <Route path="/doctor" element={<DoctorLayout />}>
+          <Route index element={<Desk />} />
+
+          <Route path="calendar" element={<Calendar />} />
+
+          <Route path="patients" element={<Patients />} />
+          <Route path="patients/:patientId" element={<PatientDetail />} />
+          <Route path="patients/:patientId/chat" element={<PatientChat />} />
+
+          <Route path="notifications" element={<DoctorNotifications />} />
+          <Route path="profile" element={<DoctorProfile />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -8,7 +8,8 @@ import { ChatBubble } from '@/components/ChatBubble';
 import { AsyncState } from '@/components/AsyncState';
 import { useAuth } from '@/auth/AuthProvider';
 import { useAsyncData } from '@/lib/useAsyncData';
-import { doctorsApi, formatDoctorName, formatDoctorSpecialty } from '@/api/doctors';
+import { doctorsApi, formatDoctorName, formatDoctorSpecialty, getDoctorBiography } from '@/api/doctors';
+import { DoctorBioBlock } from '@/components/DoctorBioBlock';
 import { useDoctorChat } from './useDoctorChat';
 
 export function DoctorChat() {
@@ -45,18 +46,20 @@ export function DoctorChat() {
       <AsyncState loading={doctorLoading} error={doctorError} onRetry={reload}>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[300px_1fr]">
           <Card className="p-6">
-            <h3 className="text-[16px] font-semibold text-text">О враче</h3>
-            <p className="mt-3 text-[13px] text-text-muted">
-              {doctor?.experienceYears != null ? `Стаж ${doctor.experienceYears} лет. ` : ''}
-              {doctor?.clinic || doctor?.clinicName
-                ? `Клиника-партнёр: ${doctor.clinic ?? doctor.clinicName}. `
-                : ''}
-              {doctor?.schedule ? `Расписание: ${doctor.schedule}.` : ''}
-            </p>
+            <DoctorBioBlock biography={getDoctorBiography(doctor ?? undefined)} />
+            {(doctor?.experienceYears != null || doctor?.clinic || doctor?.clinicName || doctor?.schedule) && (
+              <p className="mt-3 text-[13px] text-text-muted">
+                {doctor?.experienceYears != null ? `Стаж ${doctor.experienceYears} лет. ` : ''}
+                {doctor?.clinic || doctor?.clinicName
+                  ? `Клиника-партнёр: ${doctor.clinic ?? doctor.clinicName}. `
+                  : ''}
+                {doctor?.schedule ? `Расписание: ${doctor.schedule}.` : ''}
+              </p>
+            )}
           </Card>
 
           <div className="flex flex-col gap-6">
-            <Card className="flex max-h-[540px] flex-col gap-3 overflow-y-auto p-6 scrollbar-thin">
+            <Card className="flex max-h-[540px] flex-col gap-4 overflow-y-auto p-6 scrollbar-thin">
               <AsyncState loading={loading} error={error}>
                 {messages.length === 0 ? (
                   <p className="text-[13px] text-text-muted">

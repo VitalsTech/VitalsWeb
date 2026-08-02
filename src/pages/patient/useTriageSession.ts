@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { triageApi, getSessionId } from '@/api/triage';
-import type { TriageMessageDto, TriageSessionDto } from '@/api/triage';
+import {
+  triageApi,
+  getSessionId,
+  normalizeTriageSession,
+  isTriageCompleted,
+  type TriageMessageDto,
+  type TriageSessionDto,
+} from '@/api/triage';
 import type { ChatMessage } from '@/types/chat';
 import { nextId } from '@/lib/id';
 
@@ -11,13 +17,27 @@ function storageKey(patientId: string) {
 function toChatMessage(dto: TriageMessageDto, fallbackId: string): ChatMessage {
   const role = String(dto.role ?? dto.from ?? dto.sender ?? 'ai').toLowerCase();
   const from: ChatMessage['from'] = role.includes('user') || role.includes('patient') ? 'user' : 'ai';
-  return { id: String(dto.id ?? fallbackId), from, text: String(dto.content ?? dto.text ?? '') };
+  return {
+    id: String(dto.id ?? fallbackId),
+    from,
+    text: String(dto.content ?? dto.text ?? dto.message ?? ''),
+  };
+}
+
+function looksLikeSession(value: unknown): value is TriageSessionDto {
+  if (!value || typeof value !== 'object') return false;
+  const obj = value as TriageSessionDto;
+  return Boolean(
+    obj.sessionId ||
+      obj.id ||
+      Array.isArray(obj.messages) ||
+      obj.latestAssessment ||
+      typeof obj.readyToComplete === 'boolean',
+  );
 }
 
 /**
- * Shared triage-session state used by both the guided "ИИ-триаж" flow and
- * the free-form "Чат с ИИ" screen — the contract only exposes one Triage
- * session concept, so both UIs are views over the same backend session.
+ * Shared triage-session state — guided «ИИ-триаж» and «Чат с ИИ».
  */
 export function useTriageSession(patientId: string | null) {
   const [sessionId, setSessionId] = useState<string | null>(() =>
@@ -30,9 +50,14 @@ export function useTriageSession(patientId: string | null) {
   const [error, setError] = useState<string | null>(null);
 
   const applySession = useCallback((next: TriageSessionDto) => {
-    setSession(next);
-    if (Array.isArray(next.messages) && next.messages.length > 0) {
-      setMessages(next.messages.map((m, i) => toChatMessage(m, `s-${i}`)));
+    const normalized = normalizeTriageSession(next) ?? next;
+    setSession(normalized);
+    if (Array.isArray(normalized.messages) && normalized.messages.length > 0) {
+      setMessages(
+        normalized.messages
+          .map((m, i) => toChatMessage(m, `s-${i}`))
+          .filter((m) => m.text.trim().length > 0),
+      );
     }
   }, []);
 
@@ -65,7 +90,11 @@ export function useTriageSession(patientId: string | null) {
 
       try {
         if (!sessionId) {
-          const created = await triageApi.createSession({ patientId, chiefComplaint: text, locale: 'ru' });
+          const created = await triageApi.createSession({
+            patientId,
+            chiefComplaint: text,
+            locale: 'ru',
+          });
           const createdId = getSessionId(created);
           if (createdId) {
             window.localStorage.setItem(storageKey(patientId), createdId);
@@ -74,15 +103,18 @@ export function useTriageSession(patientId: string | null) {
           applySession(created);
         } else {
           const reply = await triageApi.sendMessage(sessionId, text);
-          const maybeSession = reply as TriageSessionDto;
-          if (Array.isArray(maybeSession.messages)) {
-            applySession(maybeSession);
+          if (looksLikeSession(reply)) {
+            applySession(reply);
+            // Если в ответе нет полного messages — подтянем GET.
+            if (!Array.isArray(reply.messages) || reply.messages.length === 0) {
+              const refreshed = await triageApi.getSession(sessionId);
+              applySession(refreshed);
+            }
           } else {
             const maybeMessage = reply as TriageMessageDto;
-            if (maybeMessage && (maybeMessage.content || maybeMessage.text)) {
+            if (maybeMessage && (maybeMessage.content || maybeMessage.text || maybeMessage.message)) {
               setMessages((prev) => [...prev, toChatMessage(maybeMessage, nextId('a'))]);
             }
-            // Reconcile with backend state regardless of what the POST returned.
             const refreshed = await triageApi.getSession(sessionId);
             applySession(refreshed);
           }
@@ -96,9 +128,53 @@ export function useTriageSession(patientId: string | null) {
     [patientId, sessionId, applySession],
   );
 
-  const hasRouting = Boolean(
-    session?.urgency || session?.urgencyLevel || session?.recommendation || session?.recommendationText,
-  );
+  const isCompleted = isTriageCompleted(session);
+  const readyToComplete = Boolean(session?.readyToComplete) && !isCompleted;
+  const completeSuggestion = session?.completeSuggestion?.trim() || undefined;
+  const hypotheses = session?.latestAssessment?.llmResult?.hypotheses ?? [];
 
-  return { sessionId, session, messages, loading, sending, error, send, refresh, hasRouting };
+  /** Совместимость: «есть маршрут» = триаж завершён (не промежуточная срочность ИИ). */
+  const hasRouting = isCompleted;
+
+  const complete = useCallback(async () => {
+    if (!sessionId) return null;
+    setSending(true);
+    setError(null);
+    try {
+      const completed = await triageApi.completeSession(sessionId);
+      applySession(completed);
+      return normalizeTriageSession(completed);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось завершить триаж.');
+      return null;
+    } finally {
+      setSending(false);
+    }
+  }, [sessionId, applySession]);
+
+  const startNew = useCallback(() => {
+    if (patientId) window.localStorage.removeItem(storageKey(patientId));
+    setSessionId(null);
+    setSession(null);
+    setMessages([]);
+    setError(null);
+  }, [patientId]);
+
+  return {
+    sessionId,
+    session,
+    messages,
+    loading,
+    sending,
+    error,
+    send,
+    refresh,
+    complete,
+    startNew,
+    hasRouting,
+    isCompleted,
+    readyToComplete,
+    completeSuggestion,
+    hypotheses,
+  };
 }

@@ -1,15 +1,81 @@
 import { apiRequest } from './http';
 
+/** Gateway валидирует тип консультации по этому списку (алиасы вида `chat`
+ * тоже принимаются, но отправляем канонические значения). */
+export type ConsultationTypeValue = 'SyncChat' | 'Video' | 'Async' | 'InPerson' | 'HomeVisit';
+
+export const CONSULTATION_TYPE = {
+  chat: 'SyncChat',
+  video: 'Video',
+  async: 'Async',
+  inPerson: 'InPerson',
+  homeVisit: 'HomeVisit',
+} as const satisfies Record<string, ConsultationTypeValue>;
+
+const CONSULTATION_TYPE_LABELS: Record<string, string> = {
+  syncchat: 'Чат с врачом',
+  asyncchat: 'Отложенная консультация',
+  async: 'Отложенная консультация',
+  audio: 'Аудиоконсультация',
+  video: 'Онлайн-приём',
+  inperson: 'Очный приём',
+  homevisit: 'Вызов на дом',
+};
+
+export function formatConsultationType(value: string | undefined | null): string {
+  if (!value) return '—';
+  return CONSULTATION_TYPE_LABELS[value.replace(/[\s_-]/g, '').toLowerCase()] ?? value;
+}
+
 export interface CreateConsultationPayload {
   patientId: string;
   doctorId: string;
   doctorName?: string;
-  consultationType?: string;
+  consultationType?: ConsultationTypeValue;
+  /** Выбранная ячейка расписания врача (ISO) */
+  scheduledAt?: string;
+  slotId?: string;
   primarySymptom?: string;
   urgency?: string;
   urgencyLevel?: number;
   routingDecisionId?: string;
   triageSessionId?: string;
+}
+
+/** Запись пациента на слот: резервирует слот и создаёт консультацию на его время. */
+export interface BookConsultationPayload {
+  doctorId: string;
+  slotId: string;
+  consultationType?: ConsultationTypeValue;
+  urgencyLevel?: number;
+  triageSessionId?: string | null;
+}
+
+export interface BookConsultationResponse {
+  sessionId?: string;
+  doctorId?: string;
+  patientId?: string;
+  slotId?: string;
+  startsAt?: string;
+  endsAt?: string;
+  isOnline?: boolean;
+  type?: string;
+  status?: string;
+  /** false — консультация создана, но слот не связали; календарь сопоставит по времени */
+  slotLinked?: boolean;
+}
+
+/** Протокол из GET /consultations/{id} после complete. */
+export interface ConsultationProtocolDto {
+  complaints?: string;
+  anamnesis?: string;
+  examinationNotes?: string;
+  preliminaryDiagnosisIcd10?: string;
+  preliminaryDiagnosisText?: string;
+  recommendations?: string;
+  prescriptions?: string[];
+  labOrders?: string[];
+  nextVisitDate?: string | null;
 }
 
 export interface ConsultationDto {
@@ -18,15 +84,35 @@ export interface ConsultationDto {
   patientId?: string;
   doctorId?: string;
   doctorName?: string;
+  /** В ответе `mine` поле называется `type` */
+  type?: string;
   consultationType?: string;
   status?: string;
-  scheduledAt?: string;
+  urgencyLevel?: number;
+  scheduledAt?: string | null;
+  scheduledSlotId?: string | null;
+  /** true — запись на слот; false — свободный чат без брони */
+  isScheduled?: boolean;
   createdAt?: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  lastActivityAt?: string;
+  patientUnreadCount?: number;
+  doctorUnreadCount?: number;
+  videoRoomId?: string | null;
+  protocol?: ConsultationProtocolDto | null;
+  protocolSignature?: string | null;
+  hasProtocol?: boolean;
   [key: string]: unknown;
+}
+
+export interface MyConsultationsResponse {
+  items?: ConsultationDto[];
 }
 
 export interface ConsultationMessageDto {
   id?: string;
+  messageId?: string;
   sequence?: number;
   sequenceNumber?: number;
   senderRole?: string;
@@ -36,7 +122,23 @@ export interface ConsultationMessageDto {
   attachmentUrl?: string;
   isImportant?: boolean;
   createdAt?: string;
+  sentAt?: string;
+  readAt?: string | null;
   [key: string]: unknown;
+}
+
+/** Протокол завершения консультации врачом. */
+export interface CompleteConsultationPayload {
+  complaints: string;
+  anamnesis: string;
+  examinationNotes?: string;
+  preliminaryDiagnosisIcd10: string;
+  preliminaryDiagnosisText: string;
+  recommendations: string;
+  prescriptions?: string[];
+  /** Названия направлений на анализы */
+  labOrders?: string[];
+  nextVisitDate?: string | null;
 }
 
 export const consultationsApi = {
@@ -44,8 +146,32 @@ export const consultationsApi = {
     return apiRequest<ConsultationDto>('/api/v1/consultations', { method: 'POST', body: payload });
   },
 
+  /** Запись на слот расписания. 409 — слот уже занят. Не использовать `create` для брони. */
+  book(payload: BookConsultationPayload) {
+    return apiRequest<BookConsultationResponse>('/api/v1/consultations/book', {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
   get(sessionId: string) {
     return apiRequest<ConsultationDto>(`/api/v1/consultations/${sessionId}`);
+  },
+
+  /** Список консультаций текущего пользователя (пациент — записи и чаты). */
+  listMine(params: { includeCompleted?: boolean; limit?: number } = {}) {
+    return apiRequest<MyConsultationsResponse | ConsultationDto[]>('/api/v1/consultations/mine', {
+      query: {
+        includeCompleted: params.includeCompleted ?? false,
+        limit: params.limit ?? 50,
+      },
+    });
+  },
+
+  getActive(patientId: string, doctorId: string) {
+    return apiRequest<ConsultationDto>('/api/v1/consultations/active', {
+      query: { patientId, doctorId },
+    });
   },
 
   join(sessionId: string, role?: string) {
@@ -62,11 +188,17 @@ export const consultationsApi = {
     });
   },
 
-  getMessages(sessionId: string, afterSequence = 0) {
+  getMessages(sessionId: string, afterSequence = 0, options: { markAsRead?: boolean } = {}) {
     return apiRequest<ConsultationMessageDto[] | { items?: ConsultationMessageDto[] }>(
       `/api/v1/consultations/${sessionId}/messages`,
-      { query: { afterSequence } },
+      { query: { afterSequence, ...(options.markAsRead ? { markAsRead: true } : {}) } },
     );
+  },
+
+  markMessagesRead(sessionId: string) {
+    return apiRequest<unknown>(`/api/v1/consultations/${sessionId}/messages/read`, {
+      method: 'POST',
+    });
   },
 
   sendMessage(
@@ -98,6 +230,13 @@ export const consultationsApi = {
     });
   },
 
+  complete(sessionId: string, payload: CompleteConsultationPayload) {
+    return apiRequest<ConsultationDto>(`/api/v1/consultations/${sessionId}/complete`, {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
   submitRating(
     sessionId: string,
     payload: { role?: string; score: number; feedback?: string },
@@ -119,4 +258,16 @@ export function normalizeMessages(
 
 export function getConsultationId(consultation: ConsultationDto | null | undefined): string | undefined {
   return consultation?.id ?? consultation?.sessionId;
+}
+
+export function normalizeMine(
+  response: MyConsultationsResponse | ConsultationDto[] | null | undefined,
+): ConsultationDto[] {
+  if (!response) return [];
+  if (Array.isArray(response)) return response;
+  return response.items ?? [];
+}
+
+export function getConsultationTypeLabel(consultation: ConsultationDto | null | undefined): string {
+  return formatConsultationType(consultation?.type ?? consultation?.consultationType);
 }
