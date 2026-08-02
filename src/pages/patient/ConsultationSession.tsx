@@ -9,6 +9,7 @@ import { ChatBubble } from '@/components/ChatBubble';
 import { AsyncState } from '@/components/AsyncState';
 import { getConsultationTypeLabel, type ConsultationProtocolDto } from '@/api/consultations';
 import { formatDayTime } from '@/lib/scheduleSlot';
+import { useChatAutoScroll } from '@/lib/useChatAutoScroll';
 import { useConsultationBySession } from './useConsultationBySession';
 
 function ProtocolBlock({ protocol }: { protocol: ConsultationProtocolDto }) {
@@ -105,6 +106,7 @@ export function ConsultationSession() {
   const [draft, setDraft] = useState('');
   const { consultation, messages, loading, sending, error, send } =
     useConsultationBySession(sessionId);
+  const chatEndRef = useChatAutoScroll([messages, sending, loading]);
 
   async function submit() {
     if (!draft.trim()) return;
@@ -162,6 +164,7 @@ export function ConsultationSession() {
             ) : (
               messages.map((m) => <ChatBubble key={m.id} message={m} />)
             )}
+            <div ref={chatEndRef} />
           </AsyncState>
         </Card>
 

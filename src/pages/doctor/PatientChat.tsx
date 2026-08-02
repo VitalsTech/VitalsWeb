@@ -15,6 +15,7 @@ import {
   summaryFromConsultation,
 } from '@/lib/consultationSummary';
 import { patientIdCandidates, resolvePatientIdentity } from '@/lib/resolvePatientId';
+import { useChatAutoScroll } from '@/lib/useChatAutoScroll';
 import { useConsultationChat } from './useConsultationChat';
 import { getContact, removeContact, upsertContact } from './contacts';
 import { CompleteConsultationModal } from './CompleteConsultationModal';
@@ -72,6 +73,7 @@ export function PatientChat() {
     sessionIdParam,
     patientAliases,
   );
+  const chatEndRef = useChatAutoScroll([messages, sending, loading]);
 
   useEffect(() => {
     const identity = identityQuery.data;
@@ -178,6 +180,7 @@ export function PatientChat() {
               ) : (
                 messages.map((m) => <ChatBubble key={m.id} message={m} />)
               )}
+              <div ref={chatEndRef} />
             </AsyncState>
           </Card>
 

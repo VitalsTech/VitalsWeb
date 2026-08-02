@@ -91,6 +91,7 @@ export function extractQrImageSrc(data: unknown): string | null {
   if (typeof data === 'object') {
     const obj = data as Record<string, unknown>;
     for (const key of [
+      'qrCodeBase64Png',
       'qrCodeBase64',
       'qrBase64',
       'imageBase64',
@@ -102,6 +103,7 @@ export function extractQrImageSrc(data: unknown): string | null {
       'url',
       'dataUrl',
       'qr',
+      'data',
     ]) {
       const nested = extractQrImageSrc(obj[key]);
       if (nested) return nested;

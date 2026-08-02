@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useState, type KeyboardEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/Card';
@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Textarea } from '@/components/ui/Input';
 import { ChatBubble } from '@/components/ChatBubble';
 import { useAuth } from '@/auth/AuthProvider';
+import { useChatAutoScroll } from '@/lib/useChatAutoScroll';
 import { useTriageSession } from './useTriageSession';
 
 const QUICK_PHRASES = ['Стало хуже', 'Нужна консультация', 'После процедуры', 'Высокая температура'];
@@ -30,7 +31,7 @@ export function Triage() {
   const [draft, setDraft] = useState('');
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatEndRef = useChatAutoScroll([messages, sending]);
 
   useEffect(() => {
     if (searchParams.get('new') === '1') {
@@ -38,10 +39,6 @@ export function Triage() {
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams, startNew]);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages, sending]);
 
   async function submit(text: string) {
     if (!text.trim() || sending || isCompleted) return;
