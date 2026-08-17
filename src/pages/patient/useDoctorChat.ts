@@ -122,5 +122,10 @@ export function useDoctorChat(patientId: string | null, doctorId: string | undef
     [sessionId, loadMessages],
   );
 
-  return { sessionId, messages, loading, sending, error, send };
+  const reload = useCallback(async () => {
+    if (!sessionId) return;
+    await loadMessages(sessionId, false);
+  }, [sessionId, loadMessages]);
+
+  return { sessionId, messages, loading, sending, error, send, reload };
 }

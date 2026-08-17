@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/Card';
@@ -7,9 +7,12 @@ import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { ChatBubble } from '@/components/ChatBubble';
 import { AsyncState } from '@/components/AsyncState';
+import { VideoCallStage } from '@/components/VideoCallStage';
 import { getConsultationTypeLabel, type ConsultationProtocolDto } from '@/api/consultations';
 import { formatDayTime } from '@/lib/scheduleSlot';
 import { useChatAutoScroll } from '@/lib/useChatAutoScroll';
+import { useConsultationHub } from '@/lib/useConsultationHub';
+import { useConsultationVideo } from '@/lib/useConsultationVideo';
 import { useConsultationBySession } from './useConsultationBySession';
 
 function ProtocolBlock({ protocol }: { protocol: ConsultationProtocolDto }) {
@@ -104,9 +107,38 @@ function ProtocolBlock({ protocol }: { protocol: ConsultationProtocolDto }) {
 export function ConsultationSession() {
   const { sessionId } = useParams();
   const [draft, setDraft] = useState('');
-  const { consultation, messages, loading, sending, error, send } =
+  const { consultation, messages, loading, sending, error, send, reload, patchConsultation } =
     useConsultationBySession(sessionId);
   const chatEndRef = useChatAutoScroll([messages, sending, loading]);
+
+  const status = (consultation?.status ?? '').toLowerCase();
+  const closed =
+    consultation?.hasProtocol ||
+    Boolean(consultation?.protocol) ||
+    status === 'completed' ||
+    status === 'doctorleft';
+
+  const hub = useConsultationHub(loading || closed ? null : sessionId ?? null);
+  const video = useConsultationVideo({
+    sessionId,
+    hub,
+    polite: true,
+    enabled: !loading && !closed && Boolean(sessionId),
+  });
+
+  useEffect(() => {
+    return hub.subscribe({
+      onMessage: () => {
+        void reload();
+      },
+      onClinicalAction: () => {
+        void reload();
+      },
+      onStatusChanged: (nextStatus) => {
+        patchConsultation({ status: nextStatus });
+      },
+    });
+  }, [hub, reload, patchConsultation]);
 
   async function submit() {
     if (!draft.trim()) return;
@@ -123,12 +155,6 @@ export function ConsultationSession() {
       : null,
   ].filter(Boolean);
 
-  const status = (consultation?.status ?? '').toLowerCase();
-  const closed =
-    consultation?.hasProtocol ||
-    Boolean(consultation?.protocol) ||
-    status === 'completed' ||
-    status === 'doctorleft';
   const protocol = consultation?.protocol ?? null;
 
   return (
@@ -153,44 +179,67 @@ export function ConsultationSession() {
       <div className="flex flex-col gap-6">
         {protocol && <ProtocolBlock protocol={protocol} />}
 
-        <Card className="flex max-h-[540px] flex-col gap-4 overflow-y-auto p-6 scrollbar-thin">
-          <AsyncState loading={loading} error={error}>
-            {messages.length === 0 ? (
-              <p className="text-[13px] text-text-muted">
-                {closed
-                  ? 'Сообщений в этой консультации нет.'
-                  : 'Напишите сообщение врачу — вы в конкретной консультации.'}
-              </p>
-            ) : (
-              messages.map((m) => <ChatBubble key={m.id} message={m} />)
-            )}
-            <div ref={chatEndRef} />
-          </AsyncState>
-        </Card>
-
         {!closed && (
-          <Card className="flex flex-col gap-3 p-6 sm:flex-row sm:items-center">
-            <Input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder="Напишите сообщение…"
-              className="flex-1"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  void submit();
-                }
-              }}
-            />
-            <div className="flex gap-3">
-              <Button variant="secondary" disabled>
-                Файл
-              </Button>
-              <Button disabled={sending || loading} onClick={() => void submit()}>
-                Отпр.
-              </Button>
-            </div>
-          </Card>
+          <VideoCallStage
+            video={video}
+            sessionId={sessionId}
+            requireConsent
+            hubReady={hub.ready}
+            hubError={hub.error}
+            chat={
+              <>
+                <Card className="js-chat-log flex max-h-[540px] min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-6 scrollbar-thin">
+                  <AsyncState loading={loading} error={error}>
+                    {messages.length === 0 ? (
+                      <p className="text-[13px] text-text-muted">
+                        Напишите сообщение врачу — вы в конкретной консультации.
+                      </p>
+                    ) : (
+                      messages.map((m) => <ChatBubble key={m.id} message={m} />)
+                    )}
+                    <div ref={chatEndRef} />
+                  </AsyncState>
+                </Card>
+                <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+                  <Input
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder="Напишите сообщение…"
+                    className="flex-1"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        void submit();
+                      }
+                    }}
+                  />
+                  <div className="flex gap-3">
+                    <Button variant="secondary" disabled>
+                      Файл
+                    </Button>
+                    <Button disabled={sending || loading} onClick={() => void submit()}>
+                      Отпр.
+                    </Button>
+                  </div>
+                </Card>
+              </>
+            }
+          />
+        )}
+
+        {closed && (
+          <>
+            <Card className="flex max-h-[540px] flex-col gap-4 overflow-y-auto p-6 scrollbar-thin">
+              <AsyncState loading={loading} error={error}>
+                {messages.length === 0 ? (
+                  <p className="text-[13px] text-text-muted">Сообщений в этой консультации нет.</p>
+                ) : (
+                  messages.map((m) => <ChatBubble key={m.id} message={m} />)
+                )}
+                <div ref={chatEndRef} />
+              </AsyncState>
+            </Card>
+          </>
         )}
       </div>
     </div>

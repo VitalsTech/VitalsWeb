@@ -87,5 +87,14 @@ export function useConsultationBySession(sessionId: string | undefined) {
     [sessionId, loadMessages],
   );
 
-  return { consultation, messages, loading, sending, error, send };
+  const reload = useCallback(async () => {
+    if (!sessionId) return;
+    await loadMessages(sessionId, false);
+  }, [sessionId, loadMessages]);
+
+  const patchConsultation = useCallback((patch: Partial<ConsultationDto>) => {
+    setConsultation((prev) => (prev ? { ...prev, ...patch } : prev));
+  }, []);
+
+  return { consultation, messages, loading, sending, error, send, reload, patchConsultation };
 }

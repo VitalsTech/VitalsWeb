@@ -100,6 +100,8 @@ export interface ConsultationDto {
   patientUnreadCount?: number;
   doctorUnreadCount?: number;
   videoRoomId?: string | null;
+  videoActive?: boolean;
+  patientConsentGiven?: boolean;
   protocol?: ConsultationProtocolDto | null;
   protocolSignature?: string | null;
   hasProtocol?: boolean;
@@ -246,7 +248,123 @@ export const consultationsApi = {
       body: payload,
     });
   },
+
+  startVideo(sessionId: string) {
+    return apiRequest<VideoRoomResponse>(`/api/v1/consultations/${sessionId}/video/start`, {
+      method: 'POST',
+    });
+  },
+
+  getVideo(sessionId: string) {
+    return apiRequest<VideoRoomResponse>(`/api/v1/consultations/${sessionId}/video`);
+  },
+
+  stopVideo(sessionId: string) {
+    return apiRequest<void>(`/api/v1/consultations/${sessionId}/video/stop`, { method: 'POST' });
+  },
+
+  getClinical(sessionId: string) {
+    return apiRequest<ClinicalActionsResponse | ClinicalActionDto[]>(
+      `/api/v1/consultations/${sessionId}/clinical`,
+    );
+  },
+
+  addDiagnosis(sessionId: string, payload: { icd10?: string; text?: string }) {
+    return apiRequest<ClinicalActionDto>(`/api/v1/consultations/${sessionId}/diagnoses`, {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
+  addPrescriptions(sessionId: string, payload: { lines: string[] }) {
+    return apiRequest<ClinicalActionDto>(`/api/v1/consultations/${sessionId}/prescriptions`, {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
+  issueCertificate(sessionId: string, payload: IssueCertificatePayload) {
+    return apiRequest<ClinicalActionDto>(`/api/v1/consultations/${sessionId}/certificates`, {
+      method: 'POST',
+      body: payload,
+    });
+  },
 };
+
+export type VideoMode = 'p2p' | 'sfu' | string;
+
+export interface IceServerDto {
+  urls?: string | string[];
+  username?: string;
+  credential?: string;
+}
+
+export interface VideoRoomResponse {
+  mode?: VideoMode;
+  roomId?: string;
+  serverUrl?: string;
+  accessToken?: string;
+  role?: string;
+  chatAvailable?: boolean;
+  signalingHub?: string;
+  iceServers?: IceServerDto[];
+}
+
+export type RtcSignalType = 'offer' | 'answer' | 'ice' | 'hangup' | 'media';
+
+export interface RtcSignal {
+  type: RtcSignalType;
+  sdp?: string;
+  candidate?: string;
+  sdpMid?: string;
+  sdpMLineIndex?: number;
+  audio?: boolean;
+  video?: boolean;
+}
+
+export interface RtcSignalEvent extends RtcSignal {
+  sessionId?: string;
+  fromUserId?: string;
+}
+
+export type ClinicalActionKind = 'Diagnosis' | 'Prescription' | 'Certificate' | string;
+
+export type CertificateType = 'HealthStatus' | 'StudyExcuse' | 'WorkExcuse' | 'Other';
+
+export interface ClinicalActionDto {
+  id?: string;
+  kind?: ClinicalActionKind;
+  createdAt?: string;
+  createdByDoctorId?: string;
+  payload?: unknown;
+}
+
+export interface ClinicalActionsResponse {
+  items?: ClinicalActionDto[];
+}
+
+export interface IssueCertificatePayload {
+  type: CertificateType;
+  title: string;
+  body: string;
+  validFrom?: string;
+  validUntil?: string;
+}
+
+export function normalizeClinical(
+  response: ClinicalActionsResponse | ClinicalActionDto[] | null | undefined,
+): ClinicalActionDto[] {
+  if (!response) return [];
+  if (Array.isArray(response)) return response;
+  return response.items ?? [];
+}
+
+export function isConsultationVideoActive(consultation: ConsultationDto | null | undefined): boolean {
+  if (!consultation) return false;
+  if (consultation.videoActive === true) return true;
+  if (consultation.videoActive === false) return false;
+  return Boolean(consultation.videoRoomId);
+}
 
 export function normalizeMessages(
   response: ConsultationMessageDto[] | { items?: ConsultationMessageDto[] } | null | undefined,
