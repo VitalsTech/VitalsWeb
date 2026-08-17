@@ -6,9 +6,9 @@ export function Logo({
   layout = 'inline',
 }: {
   className?: string;
-  /** `sidebar` — тёмная навигация; `onLight` — светлый фон (auth, header) */
+  /** `sidebar` - тёмная навигация; `onLight` - светлый фон (auth, header) */
   variant?: 'sidebar' | 'onLight';
-  /** `inline` — в строку; `stacked` — крупная надпись (auth) */
+  /** `inline` - в строку; `stacked` - крупная надпись (auth) */
   layout?: 'inline' | 'stacked';
 }) {
   return (

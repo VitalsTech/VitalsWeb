@@ -1,5 +1,6 @@
 export * from './http';
 export * from './auth';
+export * from './esia';
 export * from './users';
 export * from './doctors';
 export * from './triage';

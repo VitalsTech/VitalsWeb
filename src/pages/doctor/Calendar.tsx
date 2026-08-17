@@ -74,7 +74,7 @@ function SlotCell({
     <button
       type="button"
       onClick={() => onSelect({ slot, consultation })}
-      title={`${formatSlotRange(slot)} — ${STATUS_LABELS[status]}`}
+      title={`${formatSlotRange(slot)} - ${STATUS_LABELS[status]}`}
       className={`w-full rounded-md border px-2 py-2 text-left text-[11px] transition-colors ${STATUS_STYLES[status]}`}
     >
       <p className="font-semibold">{formatSlotRange(slot)}</p>
@@ -174,7 +174,7 @@ export function Calendar() {
     setFormError(null);
     try {
       await doctorsApi.createOrUpdateScheduleSlot({
-        // Локальное время формы переводим в UTC с суффиксом Z — так ждёт gateway.
+        // Локальное время формы переводим в UTC с суффиксом Z - так ждёт gateway.
         startsAt: new Date(`${date}T${startTime}:00`).toISOString(),
         endsAt: new Date(`${date}T${endTime}:00`).toISOString(),
         isOnline,
@@ -230,7 +230,7 @@ export function Calendar() {
     <div>
       <PageHeader
         title="Календарь"
-        description="Слоты расписания и занятость: нажмите на ячейку, чтобы увидеть детали."
+        description="Расписание приёмов"
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -323,7 +323,7 @@ export function Calendar() {
                   </p>
                   <div className="mt-2 flex flex-col gap-2">
                     {day.slots.length === 0 ? (
-                      <p className="text-center text-[11px] text-text-muted">—</p>
+                      <p className="text-center text-[11px] text-text-muted">-</p>
                     ) : (
                       day.slots.map((slot) => (
                         <SlotCell key={slotKey(slot)} slot={slot} onSelect={setSelection} />
@@ -354,10 +354,6 @@ export function Calendar() {
       {unscheduled.length > 0 && (
         <Card className="mt-6 p-6">
           <h3 className="text-[16px] font-semibold text-text">Вне расписания</h3>
-          <p className="mt-1 text-[13px] text-text-muted">
-            Незакрытые консультации без брони — созданы триажем или записаны до появления
-            бронирования.
-          </p>
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {unscheduled.map((consultation) => {
               const badge = consultationBadge(consultation);

@@ -1,7 +1,7 @@
 import { apiRequest } from './http';
 
 /**
- * Response shape isn't documented by the contract beyond "200 OK" — fields
+ * Response shape isn't documented by the contract beyond "200 OK" - fields
  * below are the ones the UI actually needs, kept optional so we degrade
  * gracefully if the backend calls something slightly differently.
  */

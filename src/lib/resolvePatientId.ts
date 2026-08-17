@@ -7,7 +7,7 @@ import {
 } from '@/api/users';
 
 export type ResolvedPatientIdentity = {
-  /** Patient ProfileId — для prescriptions / МК / lab-orders */
+  /** Patient ProfileId - для prescriptions / МК / lab-orders */
   profileId: string;
   /** User.PublicId, если удалось определить */
   publicId?: string;
@@ -20,7 +20,7 @@ const cache = new Map<string, Promise<ResolvedPatientIdentity>>();
 
 /**
  * Приводит произвольный id к Patient ProfileId.
- * Врач часто получает publicId из старых консультаций/календаря —
+ * Врач часто получает publicId из старых консультаций/календаря -
  * рецепты и МК живут на profileId.
  */
 export function resolvePatientIdentity(rawId: string): Promise<ResolvedPatientIdentity> {
@@ -50,10 +50,10 @@ export function resolvePatientIdentity(rawId: string): Promise<ResolvedPatientId
         return resolved;
       }
     } catch {
-      /* не publicId — возможно уже profileId */
+      /* не publicId - возможно уже profileId */
     }
 
-    // 2) Уже profileId: обратного lookup нет — возвращаем как есть
+    // 2) Уже profileId: обратного lookup нет - возвращаем как есть
     return { profileId: id, rawId: id };
   })();
 
@@ -72,7 +72,7 @@ async function loadProfiles(user: UserDto, publicId: string) {
   return [...byId.values()];
 }
 
-/** Все известные id одного пациента (profile + public) — для поиска консультаций/рецептов. */
+/** Все известные id одного пациента (profile + public) - для поиска консультаций/рецептов. */
 export function patientIdCandidates(identity: ResolvedPatientIdentity | null | undefined): string[] {
   if (!identity) return [];
   return [...new Set([identity.profileId, identity.publicId, identity.rawId].filter(Boolean))] as string[];

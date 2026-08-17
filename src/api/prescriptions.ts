@@ -54,7 +54,7 @@ export function normalizePrescriptionStatus(status?: string | null): string {
 
 export function getPrescriptionStatusLabel(status?: string | null): string {
   const key = normalizePrescriptionStatus(status);
-  return PRESCRIPTION_STATUS_LABELS[key] ?? status ?? '—';
+  return PRESCRIPTION_STATUS_LABELS[key] ?? status ?? '-';
 }
 
 export type PrescriptionStatusTone = 'success' | 'warning' | 'danger' | 'neutral' | 'accent';

@@ -54,7 +54,7 @@ export function TriageResult() {
   const recommendation = normalized?.recommendation ?? normalized?.recommendationText;
   const hypotheses = normalized?.latestAssessment?.llmResult?.hypotheses ?? [];
 
-  // После complete — active-route → currentDecisionId → getDecision.
+  // После complete - active-route → currentDecisionId → getDecision.
   const activeRouteQuery = useAsyncData(
     () =>
       patientId && completed
@@ -171,11 +171,6 @@ export function TriageResult() {
                       ? `Уровень срочности: ${normalized.urgencyLevel ?? normalized.latestUrgencyLevel}`
                       : 'Итоговая оценка появится после завершения триажа.'}
                   </p>
-                  {normalized?.routingOutcomeType && (
-                    <p className="mt-2 text-[13px] text-text-muted">
-                      Исход маршрута: {normalized.routingOutcomeType}
-                    </p>
-                  )}
                   {hypotheses.length > 0 && (
                     <ul className="mt-3 flex flex-col gap-1">
                       {hypotheses.slice(0, 3).map((h) => (
@@ -194,8 +189,8 @@ export function TriageResult() {
                   <h3 className="text-[16px] font-semibold text-text">Можно удалённо</h3>
                   <p className="mt-3 text-[13px] text-text-muted">
                     {normalized?.canBeRemote === false
-                      ? 'Нет — рекомендован очный визит.'
-                      : 'Да — первичная консультация возможна онлайн. Очный визит — при ухудшении.'}
+                      ? 'Нет - рекомендован очный визит.'
+                      : 'Да - первичная консультация возможна онлайн. Очный визит - при ухудшении.'}
                   </p>
                 </Card>
               </div>
@@ -207,7 +202,7 @@ export function TriageResult() {
                 ) : (
                   <p className="mt-4 text-[14px] text-text-muted">
                     {completed
-                      ? 'Текст рекомендации не пришёл — смотрите шаги маршрута ниже.'
+                      ? 'Смотрите шаги маршрута ниже.'
                       : 'Завершите триаж, чтобы получить маршрут.'}
                   </p>
                 )}
@@ -253,9 +248,6 @@ export function TriageResult() {
             {recommendedLabs.length > 0 && (
               <Card className="mt-6 p-6">
                 <h3 className="text-[16px] font-semibold text-text">Сдайте анализы</h3>
-                <p className="mt-1 text-[13px] text-text-muted">
-                  Из routing decision / шага «Назначены анализы…»
-                </p>
                 <ul className="mt-3 list-inside list-disc text-[14px] text-text">
                   {recommendedLabs.map((lab) => (
                     <li key={lab}>{lab}</li>
@@ -263,7 +255,7 @@ export function TriageResult() {
                 </ul>
                 {labOrders.length > 0 && (
                   <p className="mt-3 text-[13px] text-text-muted">
-                    Уже есть направлений: {labOrders.length} — смотрите статусы в разделе «Анализы».
+                    Уже есть направлений: {labOrders.length}.
                   </p>
                 )}
                 <ButtonLink to="/patient/labs" className="mt-4" variant="secondary">
@@ -279,9 +271,7 @@ export function TriageResult() {
                   {assignedDoctorName ?? 'Врач по маршруту'}
                 </p>
                 <p className="mt-1 text-[13px] text-text-muted">
-                  {consultationSessionId
-                    ? 'Консультация уже открыта по решению маршрутизации.'
-                    : 'Можно написать в чат сейчас или записаться на слот расписания.'}
+                  {consultationSessionId ? 'Консультация уже открыта.' : 'Можно написать в чат или записаться на приём.'}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-3">
                   {consultationSessionId ? (

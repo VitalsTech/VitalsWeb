@@ -7,13 +7,15 @@ import { Logo } from '@/components/Logo';
 import { useAuth } from '@/auth/AuthProvider';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import type { Role } from '@/api/tokenStore';
+import { esiaApi, isEsiaStubEnabled } from '@/api/esia';
+import { EsiaStubModal } from '@/components/EsiaStubModal';
 
 type Tab = 'login' | 'register';
 
 export function Auth() {
   const [role, setRole] = useState<Role>('patient');
   const [tab, setTab] = useState<Tab>('login');
-  const { login, register } = useAuth();
+  const { login, register, refreshProfile } = useAuth();
   const navigate = useNavigate();
 
   // Храним только цифры (без плюса) для отправки на бэк
@@ -25,15 +27,32 @@ export function Auth() {
   const [secondName, setSecondName] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [sex, setSex] = useState('Female');
-  /** Routing ищет врача по алиасам therapist / терапевт — каноническое значение для MVP. */
+  /** Routing ищет врача по алиасам therapist / терапевт - каноническое значение для MVP. */
   const [specialization, setSpecialization] = useState('therapist');
   const [licenseNumber, setLicenseNumber] = useState('');
   const [biography, setBiography] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [esiaEnabled, setEsiaEnabled] = useState(false);
+  const [esiaOpen, setEsiaOpen] = useState(false);
 
   useEffect(() => {
     document.title = 'Vitals';
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void esiaApi
+      .getConfig()
+      .then((config) => {
+        if (!cancelled) setEsiaEnabled(isEsiaStubEnabled(config));
+      })
+      .catch(() => {
+        if (!cancelled) setEsiaEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Функция форматирования для отображения
@@ -259,10 +278,6 @@ export function Auth() {
                           <option value="neurologist">neurologist</option>
                           <option value="pediatrician">pediatrician</option>
                         </Select>
-                        <p className="mt-1 text-[12px] text-text-muted">
-                          Для демо routing: therapist / терапевт — иначе assignedDoctorId может быть
-                          пустым.
-                        </p>
                       </div>
                       <div>
                         <FieldLabel>Сертификат специалиста</FieldLabel>
@@ -358,12 +373,37 @@ export function Auth() {
             </Button>
           </form>
 
-          <p className="mt-6 text-[12px] text-text-muted">
-            Данные передаются напрямую в API Vitals (Auth Gateway) — бэкенд обязателен для работы
-            интерфейса.
-          </p>
+          {esiaEnabled && (
+            <div className="mt-4">
+              <Button
+                type="button"
+                variant="secondary"
+                size="lg"
+                fullWidth
+                disabled={submitting}
+                onClick={() => {
+                  setFormError(null);
+                  setEsiaOpen(true);
+                }}
+              >
+                Войти через Госуслуги
+              </Button>
+            </div>
+          )}
         </div>
       </div>
+
+      {esiaOpen && (
+        <EsiaStubModal
+          onClose={() => setEsiaOpen(false)}
+          onFinished={() => {
+            setEsiaOpen(false);
+            void refreshProfile().finally(() => {
+              navigate('/patient');
+            });
+          }}
+        />
+      )}
     </div>
   );
 }

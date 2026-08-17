@@ -16,7 +16,7 @@ function storageKey(patientId: string, doctorId: string) {
 
 /**
  * Чат врача с пациентом.
- * `patientId` — Patient ProfileId (не User.PublicId).
+ * `patientId` - Patient ProfileId (не User.PublicId).
  * DoctorId в сессии: publicId врача (как на стороне пациента при записи через /doctors/{publicId}).
  */
 export function useConsultationChat(
@@ -94,7 +94,7 @@ export function useConsultationChat(
         }
 
         if (!id) {
-          // Новые консультации — строго на Patient ProfileId.
+          // Новые консультации - строго на Patient ProfileId.
           const created = await consultationsApi.create({
             patientId: profilePatientId,
             doctorId: currentDoctorId,

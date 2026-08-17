@@ -102,7 +102,7 @@ export function AiChat() {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onComposerKeyDown}
-          placeholder="Опишите симптомы… (Enter — отправить)"
+          placeholder="Опишите симптомы… (Enter - отправить)"
           className="min-h-[72px] resize-y"
           disabled={isCompleted}
         />
@@ -123,7 +123,7 @@ export function AiChat() {
             <Button onClick={() => navigate('/patient/triage/result')}>К результату</Button>
           )}
           <p className="text-[12px] text-text-muted sm:ml-auto">
-            Enter — отправить · Shift+Enter — новая строка
+            Enter - отправить · Shift+Enter - новая строка
           </p>
         </div>
       </Card>

@@ -11,6 +11,7 @@ import { usersApi, findDoctorProfile } from '@/api/users';
 import { authApi } from '@/api/auth';
 import { doctorsApi } from '@/api/doctors';
 import { formatApiError } from '@/api/http';
+import { EsiaConnectCard } from '@/components/EsiaConnectCard';
 
 export function DoctorProfile() {
   const { user, publicId, doctorName } = useAuth();
@@ -177,10 +178,14 @@ export function DoctorProfile() {
           </div>
         </form>
 
+        <div className="mt-6 max-w-[500px]">
+          <EsiaConnectCard />
+        </div>
+
         <Card className="mt-6 max-w-[500px] p-6">
           <h3 className="mb-4 text-[16px] font-semibold text-text">Смена пароля</h3>
           <p className="mb-4 text-[13px] text-text-muted">
-            Телефон: {user?.phoneNumber ?? '—'} · Email: {user?.email ?? '—'}
+            Телефон: {user?.phoneNumber ?? '-'} · Email: {user?.email ?? '-'}
           </p>
           <form onSubmit={(e) => void handlePasswordSubmit(e)} className="flex flex-col gap-4">
             <div>

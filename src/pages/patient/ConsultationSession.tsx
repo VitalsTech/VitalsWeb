@@ -15,7 +15,7 @@ import { useConsultationBySession } from './useConsultationBySession';
 function ProtocolBlock({ protocol }: { protocol: ConsultationProtocolDto }) {
   const diagnosis = [protocol.preliminaryDiagnosisIcd10, protocol.preliminaryDiagnosisText]
     .filter(Boolean)
-    .join(' — ');
+    .join(' - ');
   const prescriptions = protocol.prescriptions ?? [];
   const labs = protocol.labOrders ?? [];
 
@@ -67,14 +67,14 @@ function ProtocolBlock({ protocol }: { protocol: ConsultationProtocolDto }) {
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {prescriptions.length > 0 && (
             <div>
-              <p className="text-[12px] font-semibold text-text-muted">Рецепты в протоколе</p>
+              <p className="text-[12px] font-semibold text-text-muted">Рецепты</p>
               <ul className="mt-2 list-inside list-disc text-[13px] text-text">
                 {prescriptions.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
               </ul>
               <p className="mt-2 text-[12px] text-text-muted">
-                Оформленные рецепты с QR — в{' '}
+                Оформленные рецепты с QR - в{' '}
                 <Link to="/patient/labs" className="font-semibold text-primary underline">
                   Анализы и рецепты
                 </Link>
@@ -159,7 +159,7 @@ export function ConsultationSession() {
               <p className="text-[13px] text-text-muted">
                 {closed
                   ? 'Сообщений в этой консультации нет.'
-                  : 'Напишите сообщение врачу — вы в конкретной консультации.'}
+                  : 'Напишите сообщение врачу - вы в конкретной консультации.'}
               </p>
             ) : (
               messages.map((m) => <ChatBubble key={m.id} message={m} />)

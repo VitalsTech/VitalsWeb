@@ -2,10 +2,12 @@ import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { ButtonLink } from '@/components/ui/Button';
 import { AsyncState } from '@/components/AsyncState';
+import { EsiaConnectCard } from '@/components/EsiaConnectCard';
 import { useAuth } from '@/auth/AuthProvider';
 import { useAsyncData } from '@/lib/useAsyncData';
 import { medicalRecordsApi } from '@/api/medicalRecords';
 import { consultationsApi, normalizeMine } from '@/api/consultations';
+import { maskSensitive, patientImportedFields } from '@/api/esia';
 import {
   pickLatestConsultation,
   summaryFromConsultation,
@@ -13,6 +15,7 @@ import {
 
 export function Profile() {
   const { user, patientId, patientName } = useAuth();
+  const imported = patientImportedFields(user);
 
   const stateQuery = useAsyncData(
     () => (patientId ? medicalRecordsApi.getState(patientId) : Promise.resolve(null)),
@@ -37,7 +40,7 @@ export function Profile() {
     <div>
       <PageHeader
         title="Профиль пациента"
-        description="Основные сведения, состояние здоровья и переход к сервисам."
+        description="Основные сведения и состояние здоровья"
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1fr]">
@@ -47,10 +50,12 @@ export function Profile() {
             <p>ФИО: {patientName}</p>
             <p>
               Дата рождения:{' '}
-              {user?.birthDate ? new Date(user.birthDate).toLocaleDateString('ru-RU') : '—'}
+              {user?.birthDate ? new Date(user.birthDate).toLocaleDateString('ru-RU') : '-'}
             </p>
-            <p>Телефон: {user?.phoneNumber ?? '—'}</p>
-            <p>Email: {user?.email ?? '—'}</p>
+            <p>Телефон: {user?.phoneNumber ?? '-'}</p>
+            <p>Email: {user?.email ?? '-'}</p>
+            <p>Полис ОМС: {maskSensitive(imported.insuranceNumber) ?? '-'}</p>
+            <p>Адрес: {imported.residenceAddress ?? '-'}</p>
           </div>
           <ButtonLink to="/patient/profile/edit" size="sm" className="mt-5 w-fit">
             Сменить пароль
@@ -86,6 +91,10 @@ export function Profile() {
             </ButtonLink>
           </div>
         </Card>
+
+        <div className="lg:col-span-2">
+          <EsiaConnectCard />
+        </div>
       </div>
     </div>
   );

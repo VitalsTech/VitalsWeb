@@ -24,7 +24,7 @@ export function Doctors() {
     <div>
       <PageHeader
         title="Врачи"
-        description="Поиск по специальности и фамилии, рекомендации платформы."
+        description="Поиск по специальности и фамилии"
       />
 
       <Input

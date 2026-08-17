@@ -35,7 +35,7 @@ export function HouseCall() {
     try {
       // The contract's /consultations endpoint requires a doctorId, which
       // doesn't fit a house-call request (a dispatcher assigns the doctor
-      // afterwards) — so we record the request as a medical-record event
+      // afterwards) - so we record the request as a medical-record event
       // instead, which the dispatch/back-office can pick up from history.
       await medicalRecordsApi.appendEvent(patientId, {
         eventType: 'house_call_request',
@@ -55,7 +55,7 @@ export function HouseCall() {
     <div>
       <PageHeader
         title="Вызов врача на дом"
-        description="Оформите заявку — диспетчер подберёт врача и время визита"
+        description="Оформите заявку - диспетчер подберёт врача и время визита"
         backTo="/patient"
         backLabel="К моему пути"
       />

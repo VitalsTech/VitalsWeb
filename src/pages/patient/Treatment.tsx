@@ -79,7 +79,7 @@ export function Treatment() {
                     <p className="text-[14px] text-success">
                       ✓ {EVENT_LABELS[event.eventType ?? ''] ?? event.eventType ?? 'Событие'}
                       {event.occurredAt
-                        ? ` — ${new Date(event.occurredAt).toLocaleDateString('ru-RU')}`
+                        ? ` - ${new Date(event.occurredAt).toLocaleDateString('ru-RU')}`
                         : ''}
                     </p>
                   </div>

@@ -357,15 +357,15 @@ export function PrescriptionDetailModal({
         <dl className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <dt className="text-[12px] font-semibold text-text-muted">Диагноз</dt>
-            <dd className="mt-1 text-[14px] text-text">{detail.diagnosisForPrescription ?? '—'}</dd>
+            <dd className="mt-1 text-[14px] text-text">{detail.diagnosisForPrescription ?? '-'}</dd>
           </div>
           <div>
             <dt className="text-[12px] font-semibold text-text-muted">Действует до</dt>
-            <dd className="mt-1 text-[14px] text-text">{formatShortDate(detail.validUntil) ?? '—'}</dd>
+            <dd className="mt-1 text-[14px] text-text">{formatShortDate(detail.validUntil) ?? '-'}</dd>
           </div>
           <div>
             <dt className="text-[12px] font-semibold text-text-muted">Создан</dt>
-            <dd className="mt-1 text-[14px] text-text">{formatDate(detail.createdAt) ?? '—'}</dd>
+            <dd className="mt-1 text-[14px] text-text">{formatDate(detail.createdAt) ?? '-'}</dd>
           </div>
           {detail.signedAt && (
             <div>

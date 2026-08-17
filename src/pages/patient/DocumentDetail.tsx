@@ -38,8 +38,8 @@ export function DocumentDetail() {
           <>
             <h2 className="text-[24px] font-bold text-text">{payload.title ?? 'Документ'}</h2>
             <p className="mt-2 text-[13px] text-text-muted">
-              Дата: {doc.occurredAt ? new Date(doc.occurredAt).toLocaleDateString('ru-RU') : '—'} · Тип:{' '}
-              {payload.docType ?? '—'} · Источник: {doc.sourceService ?? 'клиника'}
+              Дата: {doc.occurredAt ? new Date(doc.occurredAt).toLocaleDateString('ru-RU') : '-'}
+              {payload.docType ? ` · ${payload.docType}` : ''}
             </p>
 
             <div className="mt-6 flex h-[300px] items-center justify-center rounded-md border border-border">

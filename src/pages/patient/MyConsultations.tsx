@@ -108,16 +108,13 @@ export function MyConsultations() {
         {items.length === 0 ? (
           <Card className="p-6">
             <p className="text-[14px] text-text-muted">
-              Пока нет консультаций. Запишитесь к врачу или напишите в чат — записи появятся здесь.
+              Пока нет консультаций. Запишитесь к врачу или напишите в чат - записи появятся здесь.
             </p>
           </Card>
         ) : (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Card className="p-6">
               <h3 className="text-[16px] font-semibold text-text">Запланированные</h3>
-              <p className="mt-1 text-[13px] text-text-muted">
-                Записи на слот расписания — с датой и временем приёма.
-              </p>
               <div className="mt-4 flex flex-col gap-3">
                 {scheduled.length === 0 ? (
                   <p className="text-[13px] text-text-muted">Нет запланированных приёмов.</p>
@@ -135,9 +132,6 @@ export function MyConsultations() {
 
             <Card className="p-6">
               <h3 className="text-[16px] font-semibold text-text">Чаты</h3>
-              <p className="mt-1 text-[13px] text-text-muted">
-                Свободные консультации без брони слота.
-              </p>
               <div className="mt-4 flex flex-col gap-3">
                 {chats.length === 0 ? (
                   <p className="text-[13px] text-text-muted">Нет активных чатов.</p>

@@ -48,12 +48,11 @@ export function ProfileEdit() {
           <h3 className="text-[16px] font-semibold text-text">Личные данные</h3>
           <div className="mt-4 flex flex-col gap-4 text-[14px] text-text">
             <p>ФИО: {patientName}</p>
-            <p>Телефон: {user?.phoneNumber ?? '—'}</p>
-            <p>Email: {user?.email ?? '—'}</p>
+            <p>Телефон: {user?.phoneNumber ?? '-'}</p>
+            <p>Email: {user?.email ?? '-'}</p>
           </div>
           <p className="mt-5 text-[12px] text-text-muted">
-            Изменение ФИО, даты рождения и телефона пока не поддерживается API — обратитесь в
-            поддержку, если данные указаны неверно.
+            Чтобы изменить ФИО, дату рождения или телефон, обратитесь в поддержку.
           </p>
         </Card>
 

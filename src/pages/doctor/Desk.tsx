@@ -37,7 +37,7 @@ export function Desk() {
     <div>
       <PageHeader
         title="Рабочий стол"
-        description={`${doctorName} · консультации, пациенты из приёмов и календаря, уведомления.`}
+        description={doctorName}
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -56,16 +56,13 @@ export function Desk() {
           <p className="mt-2 text-[15px] font-semibold text-text">
             {patients[0]
               ? new Date(patients[0].lastActivityAt).toLocaleString('ru-RU')
-              : '—'}
+              : '-'}
           </p>
         </Card>
       </div>
 
       <Card className="mt-6 max-w-[600px] p-6">
         <h3 className="text-[15px] font-semibold text-text">Открыть приём по ID пациента</h3>
-        <p className="mt-1 text-[12px] text-text-muted">
-          Если пациента ещё нет в списке (нет общей консультации) — откройте карточку по ID.
-        </p>
         <form onSubmit={handleOpen} className="mt-4 flex gap-3">
           <Input
             value={openId}
@@ -79,15 +76,11 @@ export function Desk() {
       </Card>
 
       <h3 className="mt-8 text-[16px] font-semibold text-text">Пациенты в наблюдении</h3>
-      <p className="mt-1 text-[13px] text-text-muted">
-        Из ваших консультаций и календаря. Сводка — из протокола последней консультации.
-      </p>
       <AsyncState loading={patientsLoading} error={patientsError} onRetry={reload}>
         {patients.length === 0 ? (
           <Card className="mt-4 p-6">
             <p className="text-[14px] text-text-muted">
-              Пока нет пациентов из приёмов. Они появятся после записи/чата или добавления на
-              странице «Пациенты».
+              Пациентов пока нет.
             </p>
           </Card>
         ) : (

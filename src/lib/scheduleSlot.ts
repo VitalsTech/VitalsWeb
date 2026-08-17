@@ -42,21 +42,21 @@ export function slotStartDate(slot: ScheduleSlotDto): Date | null {
 
 export function formatTime(iso: string): string {
   const date = parseIso(iso);
-  if (!date) return '—';
+  if (!date) return '-';
   return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
 /** `сб, 01.08` */
 export function formatDayLabel(iso: string): string {
   const date = parseIso(iso);
-  if (!date) return '—';
+  if (!date) return '-';
   return date.toLocaleDateString('ru-RU', { weekday: 'short', day: '2-digit', month: '2-digit' });
 }
 
 /** `01.08, 14:00` */
 export function formatDayTime(iso: string | undefined | null): string {
   const date = parseIso(iso ?? '');
-  if (!date) return '—';
+  if (!date) return '-';
   return date.toLocaleString('ru-RU', {
     day: '2-digit',
     month: '2-digit',
@@ -69,11 +69,11 @@ export function formatDayTime(iso: string | undefined | null): string {
 export function formatSlotRange(slot: ScheduleSlotDto): string {
   const start = formatTime(slotStartIso(slot));
   const end = formatTime(slotEndIso(slot));
-  if (start === '—') return '—';
-  return end === '—' ? start : `${start} – ${end}`;
+  if (start === '-') return '-';
+  return end === '-' ? start : `${start} – ${end}`;
 }
 
-/** `YYYY-MM-DD` в местной зоне — слоты приходят в UTC, а дату пользователь
+/** `YYYY-MM-DD` в местной зоне - слоты приходят в UTC, а дату пользователь
  * выбирает в своей зоне, поэтому сравнивать ISO-строки напрямую нельзя. */
 export function localDateKey(date: Date): string {
   const year = date.getFullYear();

@@ -85,7 +85,7 @@ export interface DoctorCalendarAnamnesisDto {
   allergies?: string[];
   recentLabResults?: string[];
   latestVital?: string | null;
-  /** false — карта пациента пуста либо сервис недоступен */
+  /** false - карта пациента пуста либо сервис недоступен */
   hasData?: boolean;
 }
 
@@ -104,9 +104,9 @@ export interface DoctorCalendarConsultationDto {
   unreadCount?: number;
   videoRoomId?: string | null;
   patient?: DoctorCalendarPatientDto;
-  /** null — AITriageService недоступен или триажа не было */
+  /** null - AITriageService недоступен или триажа не было */
   triage?: DoctorCalendarTriageDto | null;
-  /** null — MedicalRecordService недоступен */
+  /** null - MedicalRecordService недоступен */
   anamnesis?: DoctorCalendarAnamnesisDto | null;
 }
 
@@ -183,7 +183,7 @@ export const doctorsApi = {
   },
 };
 
-/** The `/doctors` list endpoint's response shape isn't documented — it may
+/** The `/doctors` list endpoint's response shape isn't documented - it may
  * be a bare array or wrapped in a paged object. Normalize to an array. */
 export function normalizeDoctorList(response: DoctorDto[] | DoctorListResponse | null | undefined): DoctorDto[] {
   if (!response) return [];

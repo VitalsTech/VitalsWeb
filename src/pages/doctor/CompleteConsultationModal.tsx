@@ -58,7 +58,7 @@ export function CompleteConsultationModal({
     };
 
     try {
-      // Бэкенд сам создаёт lab-orders и рецепты из массивов протокола — не дублируем.
+      // Бэкенд сам создаёт lab-orders и рецепты из массивов протокола - не дублируем.
       await consultationsApi.complete(sessionId, payload);
       onCompleted();
     } catch (err) {
@@ -78,10 +78,7 @@ export function CompleteConsultationModal({
     <Modal onClose={onClose} widthClassName="max-w-[720px]">
       <p className="text-[13px] font-semibold text-accent">Протокол консультации</p>
       <h2 className="mt-2 text-[22px] font-bold text-text">Завершить консультацию</h2>
-      <p className="mt-2 text-[13px] text-text-muted">
-        Заполните протокол. Анализы и рецепты из списков ниже бэкенд оформит сам. Обязательные поля
-        отмечены *.
-      </p>
+      <p className="mt-2 text-[13px] text-text-muted">Обязательные поля отмечены *.</p>
 
       <form onSubmit={(e) => void handleSubmit(e)} className="mt-5 flex flex-col gap-4">
         <div>
@@ -156,11 +153,8 @@ export function CompleteConsultationModal({
             rows={2}
             value={prescriptionsText}
             onChange={(e) => setPrescriptionsText(e.target.value)}
-            placeholder={'Парацетамол 500 мг — при температуре\nАмоксициллин 500 мг — 3 р/день 7 дней'}
+            placeholder={'Парацетамол 500 мг - при температуре\nАмоксициллин 500 мг - 3 р/день 7 дней'}
           />
-          <p className="mt-1 text-[12px] text-text-muted">
-            После complete пациент увидит подписанные рецепты в разделе «Анализы и рецепты».
-          </p>
         </div>
 
         <div>
@@ -171,9 +165,6 @@ export function CompleteConsultationModal({
             onChange={(e) => setLabOrdersText(e.target.value)}
             placeholder={'ОАК\nСРБ'}
           />
-          <p className="mt-1 text-[12px] text-text-muted">
-            Бэкенд создаст lab-orders и обновит маршрут — дублировать POST /lab-orders не нужно.
-          </p>
         </div>
 
         <div className="max-w-[220px]">

@@ -40,7 +40,7 @@ function isPrescriptionEvent(event: MedicalRecordEventDto) {
 }
 
 function formatRowDate(raw?: string) {
-  if (!raw) return '—';
+  if (!raw) return '-';
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return raw;
   return date.toLocaleDateString('ru-RU');
@@ -170,10 +170,10 @@ export function Documents() {
                 <span className="text-[14px] font-semibold text-text">{doc.title}</span>
                 <span className="hidden text-[14px] text-text-muted sm:block">
                   {doc.kind === 'prescription'
-                    ? 'Рецепт · медкарта'
+                    ? 'Рецепт'
                     : doc.kind === 'attachment'
                       ? 'Вложение'
-                      : 'Событие медкарты'}
+                      : 'Документ'}
                 </span>
                 <span className="text-[14px] text-text-muted">{doc.date}</span>
                 <div className="flex flex-col gap-2">

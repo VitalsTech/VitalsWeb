@@ -37,7 +37,7 @@ function looksLikeSession(value: unknown): value is TriageSessionDto {
 }
 
 /**
- * Shared triage-session state — guided «ИИ-триаж» and «Чат с ИИ».
+ * Shared triage-session state - guided «ИИ-триаж» and «Чат с ИИ».
  */
 export function useTriageSession(patientId: string | null) {
   const [sessionId, setSessionId] = useState<string | null>(() =>
@@ -105,7 +105,7 @@ export function useTriageSession(patientId: string | null) {
           const reply = await triageApi.sendMessage(sessionId, text);
           if (looksLikeSession(reply)) {
             applySession(reply);
-            // Если в ответе нет полного messages — подтянем GET.
+            // Если в ответе нет полного messages - подтянем GET.
             if (!Array.isArray(reply.messages) || reply.messages.length === 0) {
               const refreshed = await triageApi.getSession(sessionId);
               applySession(refreshed);

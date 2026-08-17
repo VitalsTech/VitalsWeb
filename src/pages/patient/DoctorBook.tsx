@@ -101,7 +101,7 @@ export function DoctorBook() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setSelectedKey(null);
-        setSubmitError('Этот слот только что заняли — выберите другое время.');
+        setSubmitError('Этот слот только что заняли - выберите другое время.');
         reloadSchedule();
       } else {
         setSubmitError(formatApiError(err, 'Не удалось записаться на приём.'));
@@ -165,7 +165,7 @@ export function DoctorBook() {
                 </div>
               ) : freeSlots.length === 0 ? (
                 <p className="text-[13px] text-text-muted">
-                  На выбранную дату свободных слотов нет — попробуйте другую дату.
+                  На выбранную дату свободных слотов нет - попробуйте другую дату.
                 </p>
               ) : (
                 <div className="flex flex-col gap-4">
@@ -261,7 +261,7 @@ export function DoctorBook() {
           <Card className="p-6">
             <h3 className="text-[16px] font-semibold text-text">Итого</h3>
             <div className="mt-4 flex flex-col gap-2 text-[14px] text-text">
-              <p>Врач: {doctor ? formatDoctorName(doctor) : '—'}</p>
+              <p>Врач: {doctor ? formatDoctorName(doctor) : '-'}</p>
               <p>Дата: {date.split('-').reverse().join('.')}</p>
               <p>Время: {selectedSlot ? formatSlotRange(selectedSlot) : 'не выбрано'}</p>
               <p>Тип: {formatConsultationType(consultationType)}</p>

@@ -82,7 +82,7 @@ function urgencyLabel(level: number | string | undefined) {
 }
 
 function formatEventWhen(raw?: string) {
-  if (!raw) return '—';
+  if (!raw) return '-';
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return raw;
   return date.toLocaleString('ru-RU', {
@@ -107,7 +107,7 @@ function diagnosesFromHistory(
   if (stateDiagnoses.length > 0) {
     return stateDiagnoses.map((d) => ({
       id: d.sourceEventId ?? d.icd10Code ?? String(Math.random()),
-      code: d.icd10Code ?? '—',
+      code: d.icd10Code ?? '-',
       title: d.description ?? 'Диагноз',
       status: 'active',
       occurredAt: d.recordedAt,
@@ -181,7 +181,7 @@ export function PatientDetail() {
     consultationSummary ??
     contact?.summary ??
     identityQuery.data?.fullName ??
-    `ID пациента: ${patientId ?? '—'}`;
+    `ID пациента: ${patientId ?? '-'}`;
 
   const history = useAsyncData(
     () =>
@@ -448,9 +448,6 @@ export function PatientDetail() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h3 className="text-[16px] font-semibold text-text">Результат ИИ-триажа</h3>
-                  <p className="mt-1 text-[13px] text-text-muted">
-                    Из triage sessions / медкарты · календарь уже отдаёт triage в слотах
-                  </p>
                 </div>
                 {urgencyLabel(
                   latestTriageSession?.urgencyLevel ?? latestTriage?.urgencyLevel,
@@ -486,7 +483,7 @@ export function PatientDetail() {
                           {n?.recommendation && (n.recommendation.length ?? 0) > 80 ? '…' : ''}
                         </span>
                         <span className="text-text-muted">
-                          {n?.status ?? '—'}
+                          {n?.status ?? '-'}
                           {n?.urgencyLevel != null ? ` · срочность ${n.urgencyLevel}` : ''}
                         </span>
                       </div>
@@ -496,10 +493,7 @@ export function PatientDetail() {
               )}
 
               {!latestTriageEvent && !latestTriageSession ? (
-                <p className="mt-4 text-[14px] text-text-muted">
-                  Результат триажа пока отсутствует — пациент ещё не завершил ИИ-триаж или нет доступа
-                  к сессиям.
-                </p>
+                <p className="mt-4 text-[14px] text-text-muted">Результат триажа пока отсутствует.</p>
               ) : (
                 <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr]">
                   <div className="rounded-md border border-border bg-surface-muted px-4 py-4">
@@ -516,16 +510,8 @@ export function PatientDetail() {
                         ? formatEventWhen(
                             latestTriageEvent.occurredAt ?? latestTriageEvent.createdAt,
                           )
-                        : '—'}
+                        : '-'}
                     </p>
-                    {(getTriageSessionId(latestTriageSession) || latestTriage?.sessionId) && (
-                      <>
-                        <p className="mt-4 text-[12px] font-semibold text-text-muted">Сессия</p>
-                        <p className="mt-1 break-all text-[12px] text-text-muted">
-                          {getTriageSessionId(latestTriageSession) ?? latestTriage?.sessionId}
-                        </p>
-                      </>
-                    )}
                   </div>
                   <div>
                     <p className="text-[12px] font-semibold text-text-muted">Рекомендация</p>
@@ -564,16 +550,13 @@ export function PatientDetail() {
 
             <Card className="p-6 lg:col-span-2">
               <h3 className="text-[16px] font-semibold text-text">Активный маршрут</h3>
-              <p className="mt-1 text-[13px] text-text-muted">
-                Триаж → routing → консультация / анализы
-                {getDecisionSpecialty(routeDecision.data ?? undefined)
-                  ? ` · ${getDecisionSpecialty(routeDecision.data ?? undefined)}`
-                  : ''}
-              </p>
-              {routeSteps.length === 0 ? (
-                <p className="mt-4 text-[14px] text-text-muted">
-                  Активный маршрут не назначен или ещё не синхронизирован.
+              {getDecisionSpecialty(routeDecision.data ?? undefined) ? (
+                <p className="mt-1 text-[13px] text-text-muted">
+                  {getDecisionSpecialty(routeDecision.data ?? undefined)}
                 </p>
+              ) : null}
+              {routeSteps.length === 0 ? (
+                <p className="mt-4 text-[14px] text-text-muted">Активный маршрут не назначен.</p>
               ) : (
                 <ol className="mt-4 flex flex-col gap-2">
                   {routeSteps.map((step, index) => {
@@ -613,7 +596,7 @@ export function PatientDetail() {
               {recommendedLabs.length > 0 && (
                 <div className="mt-4 rounded-md border border-border bg-surface-muted px-4 py-3">
                   <p className="text-[12px] font-semibold text-text">
-                    Рекомендованные анализы (routing decision)
+                    Рекомендованные анализы
                   </p>
                   <ul className="mt-2 list-inside list-disc text-[13px] text-text-muted">
                     {recommendedLabs.map((lab) => (
@@ -631,13 +614,8 @@ export function PatientDetail() {
 
             <Card className="p-6 lg:col-span-2">
               <h3 className="text-[16px] font-semibold text-text">Направления на анализы</h3>
-              <p className="mt-1 text-[13px] text-text-muted">
-                Lab-orders пациента · статусы Ordered / InProgress / Completed
-              </p>
               {labOrderList.length === 0 ? (
-                <p className="mt-4 text-[14px] text-text-muted">
-                  Направлений пока нет. Они создаются при завершении консультации с анализами.
-                </p>
+                <p className="mt-4 text-[14px] text-text-muted">Направлений пока нет.</p>
               ) : (
                 <div className="mt-4 flex flex-col gap-3">
                   {labOrderList.map((order) => (
@@ -650,7 +628,7 @@ export function PatientDetail() {
                           {formatLabOrderItems(order)}
                         </p>
                         <p className="mt-1 text-[12px] text-text-muted">
-                          {order.orderedAt ? formatDayTime(order.orderedAt) : '—'}
+                          {order.orderedAt ? formatDayTime(order.orderedAt) : '-'}
                           {order.consultationId ? ' · из консультации' : ''}
                         </p>
                       </div>
@@ -674,7 +652,7 @@ export function PatientDetail() {
                     return (
                       <li key={doc.id} className="text-[14px] text-text-muted">
                         • {payload.title ?? payload.docType ?? 'Документ'} от{' '}
-                        {doc.occurredAt ? new Date(doc.occurredAt).toLocaleDateString('ru-RU') : '—'}
+                        {doc.occurredAt ? new Date(doc.occurredAt).toLocaleDateString('ru-RU') : '-'}
                       </li>
                     );
                   })}
@@ -771,10 +749,10 @@ function DiagnosesTab({
               className="grid grid-cols-[2fr_1fr_1fr_120px] items-center gap-4 border-b border-border px-6 py-5 last:border-b-0"
             >
               <span className="text-[14px] font-semibold text-text">
-                {d.code} — {d.title}
+                {d.code} - {d.title}
               </span>
               <span className="text-[14px] text-text-muted">
-                {d.occurredAt ? new Date(d.occurredAt).toLocaleDateString('ru-RU') : '—'}
+                {d.occurredAt ? new Date(d.occurredAt).toLocaleDateString('ru-RU') : '-'}
               </span>
               <span className="text-[14px] text-text-muted">
                 {d.status === 'closed' ? 'закрыт' : 'активный'}
@@ -980,7 +958,7 @@ function PrescriptionsTab({
             const id = getPrescriptionId(p);
             const status = normalizePrescriptionStatus(p.status);
             const busy = actionId === id;
-            const scheme = [med?.dosage, med?.frequency].filter(Boolean).join(' · ') || '—';
+            const scheme = [med?.dosage, med?.frequency].filter(Boolean).join(' · ') || '-';
 
             return (
               <div
@@ -1181,7 +1159,7 @@ function PrescriptionsTab({
               <span>
                 Сразу подписать рецепт
                 <span className="mt-0.5 block text-text-muted">
-                  Без галочки останется черновик — его можно подписать позже.
+                  Без галочки останется черновик - его можно подписать позже.
                 </span>
               </span>
             </label>

@@ -1,5 +1,5 @@
 /**
- * Minimal JWT payload decoder (no signature verification — this runs in the
+ * Minimal JWT payload decoder (no signature verification - this runs in the
  * browser purely to read non-sensitive claims like `sub`/`publicId` that the
  * gateway embeds in the access token; the token itself is always validated
  * server-side).

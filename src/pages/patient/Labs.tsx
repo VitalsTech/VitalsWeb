@@ -41,7 +41,7 @@ function LabOrderCard({
   consultationId,
 }: {
   order: LabOrderDto;
-  /** Если в order.consultationId пусто — подставляем из mine по совпадению */
+  /** Если в order.consultationId пусто - подставляем из mine по совпадению */
   consultationId?: string;
 }) {
   const items = order.items ?? [];
@@ -53,7 +53,7 @@ function LabOrderCard({
         <div className="min-w-0">
           <p className="text-[14px] font-semibold text-text">{formatLabOrderItems(order)}</p>
           <p className="mt-1 text-[12px] text-text-muted">
-            {order.orderedAt ? formatDayTime(order.orderedAt) : '—'}
+            {order.orderedAt ? formatDayTime(order.orderedAt) : '-'}
             {order.priority === 'urgent' ? ' · срочно' : ''}
             {sessionId ? ' · после консультации' : ''}
           </p>
@@ -79,7 +79,7 @@ function LabOrderCard({
               {item.resultValue ? (
                 <span className="text-text-muted">
                   {' '}
-                  — {item.resultValue}
+                  - {item.resultValue}
                   {item.unit ? ` ${item.unit}` : ''}
                   {item.isCritical ? ' · критично' : ''}
                 </span>
@@ -176,7 +176,7 @@ export function Labs() {
     return entries;
   }, [mineConsultations]);
 
-  /** sessionId для lab-order без consultationId — по названию анализа из протокола. */
+  /** sessionId для lab-order без consultationId - по названию анализа из протокола. */
   const consultationIdByLabName = useMemo(() => {
     const map = new Map<string, string>();
     for (const c of mineConsultations) {
@@ -219,7 +219,7 @@ export function Labs() {
     <div>
       <PageHeader
         title="Анализы и рецепты"
-        description="Направления из маршрута и консультаций · статусы лаборатории и аптеки"
+        description="Направления и рецепты"
         backTo="/patient"
         backLabel="К моему пути"
       />
@@ -238,9 +238,6 @@ export function Labs() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card className="p-6">
             <h3 className="text-[16px] font-semibold text-text">Направления на анализы</h3>
-            <p className="mt-1 text-[13px] text-text-muted">
-              Ordered → InProgress → Completed. Появляются после консультации или из маршрута.
-            </p>
 
             {labOrders.length > 0 ? (
               <div className="mt-4 flex flex-col gap-3">
@@ -254,10 +251,6 @@ export function Labs() {
               </div>
             ) : protocolLabEntries.length > 0 ? (
               <div className="mt-4 flex flex-col gap-3">
-                <p className="text-[13px] text-text-muted">
-                  Формальные направления ещё не созданы сервисом лаборатории — ниже назначения из
-                  протокола завершённых консультаций.
-                </p>
                 {protocolLabEntries.map((entry) => (
                   <div key={entry.key} className="rounded-md border border-border px-4 py-4">
                     <div className="flex items-start justify-between gap-3">
@@ -266,11 +259,10 @@ export function Labs() {
                           {entry.names.join(', ')}
                         </p>
                         <p className="mt-1 text-[12px] text-text-muted">
-                          {entry.completedAt ? formatDayTime(entry.completedAt) : 'Из протокола'}
-                          {' · после консультации'}
+                          {entry.completedAt ? formatDayTime(entry.completedAt) : 'После консультации'}
                         </p>
                       </div>
-                      <Badge tone="accent">Из протокола</Badge>
+                      <Badge tone="accent">Из консультации</Badge>
                     </div>
                     <ul className="mt-3 flex flex-col gap-1.5">
                       {entry.names.map((name) => (
@@ -356,12 +348,7 @@ export function Labs() {
       </AsyncState>
 
       <Card className="mt-6 p-6">
-        <h3 className="text-[16px] font-semibold text-text">Связь с маршрутом</h3>
-        <p className="mt-3 max-w-[900px] text-[14px] text-text-muted">
-          Триаж → маршрутизация → консультация → анализы. Рекомендованные анализы из routing decision
-          видны на «Мой путь»; оформленные направления — здесь.
-        </p>
-        <div className="mt-5 flex flex-wrap gap-3">
+        <div className="mt-0 flex flex-wrap gap-3">
           <ButtonLink to="/patient">К моему пути</ButtonLink>
           <ButtonLink to="/patient/consultations" variant="secondary">
             Мои консультации

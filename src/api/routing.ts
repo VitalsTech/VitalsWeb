@@ -45,7 +45,7 @@ export interface ActiveRouteDto {
   currentStep?: number;
   totalSteps?: number;
   steps?: RouteStepDto[];
-  /** если шлюз начнёт отдавать — подтянем decision */
+  /** если шлюз начнёт отдавать - подтянем decision */
   currentDecisionId?: string;
   decisionId?: string;
   recommendedLabs?: string[];

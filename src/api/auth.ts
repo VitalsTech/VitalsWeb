@@ -74,7 +74,7 @@ export const authApi = {
       return session;
     }
 
-    // Registration may not return tokens directly (undocumented response) —
+    // Registration may not return tokens directly (undocumented response) -
     // fall back to an explicit login with the same credentials.
     return authApi.login({ phoneNumber: payload.phoneNumber, password: payload.password }, role);
   },

@@ -1,7 +1,7 @@
 /**
  * Локальные ярлыки/заметки врача по patientId (имя, кэш сводки).
  * Сам список «в наблюдении» строится из консультаций и календаря
- * (`useObservedPatients`) — localStorage только дополняет отображаемые имена.
+ * (`useObservedPatients`) - localStorage только дополняет отображаемые имена.
  */
 export interface DoctorContact {
   patientId: string;
@@ -43,7 +43,7 @@ export function upsertContact(
     patientId: string;
     label?: string;
     summary?: string;
-    /** false — не обновлять lastActivityAt (фоновый sync сводки/имени) */
+    /** false - не обновлять lastActivityAt (фоновый sync сводки/имени) */
     touchActivity?: boolean;
     lastActivityAt?: string;
   },

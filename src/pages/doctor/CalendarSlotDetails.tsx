@@ -65,7 +65,7 @@ function mapSessionToCalendarTriage(
     symptoms: [],
     hypotheses: (session.hypotheses ?? session.latestAssessment?.llmResult?.hypotheses ?? []).map(
       (h) => ({
-        condition: h.condition ?? '—',
+        condition: h.condition ?? '-',
         probability: h.probability,
       }),
     ),
@@ -120,7 +120,7 @@ function TriageBlock({ triage }: { triage: DoctorCalendarTriageDto }) {
 
       {triage.emergencyWarning && (
         <p className="mt-2 rounded-md bg-danger/15 px-3 py-2 text-[13px] font-semibold text-danger">
-          Признаки экстренного состояния — требуется немедленная оценка.
+          Признаки экстренного состояния - требуется немедленная оценка.
         </p>
       )}
 
@@ -157,7 +157,7 @@ function TriageBlock({ triage }: { triage: DoctorCalendarTriageDto }) {
                 {hypothesis.probability != null && (
                   <span className="text-text-muted">
                     {' '}
-                    — {Math.round(hypothesis.probability * 100)}%
+                    - {Math.round(hypothesis.probability * 100)}%
                   </span>
                 )}
               </li>
@@ -170,7 +170,7 @@ function TriageBlock({ triage }: { triage: DoctorCalendarTriageDto }) {
         <div className="mt-3">
           <p className="text-[12px] font-semibold text-text-muted">Рекомендация ИИ</p>
           <p className="mt-1 text-[13px] text-text">
-            {triage.recommendation ?? '—'}
+            {triage.recommendation ?? '-'}
             {triage.recommendedSpecialization ? ` · ${triage.recommendedSpecialization}` : ''}
           </p>
         </div>

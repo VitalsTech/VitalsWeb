@@ -23,7 +23,7 @@ const CONSULTATION_TYPE_LABELS: Record<string, string> = {
 };
 
 export function formatConsultationType(value: string | undefined | null): string {
-  if (!value) return '—';
+  if (!value) return '-';
   return CONSULTATION_TYPE_LABELS[value.replace(/[\s_-]/g, '').toLowerCase()] ?? value;
 }
 
@@ -61,7 +61,7 @@ export interface BookConsultationResponse {
   isOnline?: boolean;
   type?: string;
   status?: string;
-  /** false — консультация создана, но слот не связали; календарь сопоставит по времени */
+  /** false - консультация создана, но слот не связали; календарь сопоставит по времени */
   slotLinked?: boolean;
 }
 
@@ -91,7 +91,7 @@ export interface ConsultationDto {
   urgencyLevel?: number;
   scheduledAt?: string | null;
   scheduledSlotId?: string | null;
-  /** true — запись на слот; false — свободный чат без брони */
+  /** true - запись на слот; false - свободный чат без брони */
   isScheduled?: boolean;
   createdAt?: string;
   startedAt?: string | null;
@@ -146,7 +146,7 @@ export const consultationsApi = {
     return apiRequest<ConsultationDto>('/api/v1/consultations', { method: 'POST', body: payload });
   },
 
-  /** Запись на слот расписания. 409 — слот уже занят. Не использовать `create` для брони. */
+  /** Запись на слот расписания. 409 - слот уже занят. Не использовать `create` для брони. */
   book(payload: BookConsultationPayload) {
     return apiRequest<BookConsultationResponse>('/api/v1/consultations/book', {
       method: 'POST',
@@ -158,7 +158,7 @@ export const consultationsApi = {
     return apiRequest<ConsultationDto>(`/api/v1/consultations/${sessionId}`);
   },
 
-  /** Список консультаций текущего пользователя (пациент — записи и чаты). */
+  /** Список консультаций текущего пользователя (пациент - записи и чаты). */
   listMine(params: { includeCompleted?: boolean; limit?: number } = {}) {
     return apiRequest<MyConsultationsResponse | ConsultationDto[]>('/api/v1/consultations/mine', {
       query: {

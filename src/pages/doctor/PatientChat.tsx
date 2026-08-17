@@ -163,9 +163,7 @@ export function PatientChat() {
               Аллергии: {state.data?.allergies ?? 'не указаны'}
             </p>
             {state.error && (
-              <p className="mt-3 text-[12px] text-text-muted">
-                Медкарта недоступна ({state.error}). Сводка из консультации, если есть.
-              </p>
+              <p className="mt-3 text-[12px] text-text-muted">Сводка недоступна.</p>
             )}
           </AsyncState>
         </Card>
@@ -175,7 +173,7 @@ export function PatientChat() {
             <AsyncState loading={loading || identityQuery.loading} error={error}>
               {messages.length === 0 ? (
                 <p className="text-[13px] text-text-muted">
-                  Напишите первое сообщение пациенту — чат создан автоматически.
+                  Напишите первое сообщение пациенту - чат создан автоматически.
                 </p>
               ) : (
                 messages.map((m) => <ChatBubble key={m.id} message={m} />)

@@ -40,7 +40,7 @@ export function Patients() {
         const state = await medicalRecordsApi.getState(identity.profileId);
         summary = state?.summary;
       } catch {
-        // Patient state may not exist yet — that's fine, we still add the contact.
+        // Patient state may not exist yet - that's fine, we still add the contact.
       }
       upsertContact(doctorId, {
         patientId: identity.profileId,
@@ -62,16 +62,13 @@ export function Patients() {
     <div>
       <PageHeader
         title="Пациенты"
-        description="Из ваших консультаций и календаря. Можно добавить пациента вручную по ID."
+        description="Пациенты на наблюдении"
         actions={<Button onClick={() => setShowAdd((v) => !v)}>Добавить пациента</Button>}
       />
 
       {showAdd && (
         <Card className="mb-6 max-w-[600px] p-6">
           <h3 className="text-[15px] font-semibold text-text">Добавить пациента по ID</h3>
-          <p className="mt-1 text-[12px] text-text-muted">
-            Если общей консультации ещё не было — укажите ID пациента, чтобы закрепить карточку.
-          </p>
           <form onSubmit={handleAdd} className="mt-4 flex flex-col gap-4">
             <div>
               <FieldLabel>ID пациента</FieldLabel>
@@ -120,8 +117,7 @@ export function Patients() {
         <AsyncState loading={loading} error={error} onRetry={reload}>
           {contacts.length === 0 ? (
             <p className="px-6 py-8 text-[14px] text-text-muted">
-              Пациентов пока нет — они появятся из консультаций/календаря или после добавления по
-              ID.
+              Пациентов пока нет.
             </p>
           ) : (
             contacts.map((c) => (

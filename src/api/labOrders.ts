@@ -144,7 +144,7 @@ export function normalizeLabOrders(
 }
 
 export function getLabOrderStatusLabel(status?: string | null): string {
-  if (!status) return '—';
+  if (!status) return '-';
   return STATUS_LABELS[status.replace(/[\s_-]/g, '').toLowerCase()] ?? status;
 }
 

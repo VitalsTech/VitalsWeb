@@ -80,7 +80,7 @@ export const medicalRecordsApi = {
 
   /**
    * Читает state по всем известным id пациента (profile + public).
-   * 403/404 на одном id не роняет весь запрос — врач с консультацией часто
+   * 403/404 на одном id не роняет весь запрос - врач с консультацией часто
    * упирается в рассинхрон publicId/profileId.
    */
   async getStateAliases(patientIds: string[]): Promise<PatientStateDto | null> {

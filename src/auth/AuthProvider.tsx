@@ -26,9 +26,9 @@ type AuthContextValue = {
   isAuthenticated: boolean;
   isLoading: boolean;
   role: Role | null;
-  /** Patient ProfileId — НЕ publicId пользователя */
+  /** Patient ProfileId - НЕ publicId пользователя */
   patientId: string | null;
-  /** Doctor ProfileId — НЕ publicId пользователя */
+  /** Doctor ProfileId - НЕ publicId пользователя */
   doctorId: string | null;
   publicId: string | null;
   patientName: string;
@@ -38,6 +38,7 @@ type AuthContextValue = {
   login: (payload: LoginPayload, role: Role) => Promise<void>;
   register: (payload: RegisterPayload, role: Role) => Promise<void>;
   logout: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -82,9 +83,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         usersApi.getProfiles(currentPublicId).catch(() => null),
       ]);
 
-      if (userDto) setUser(userDto);
-
       const profiles = mergeProfiles(userDto, profilesResponse);
+      if (userDto) setUser({ ...userDto, profiles });
+
       const resolvedPatient = resolveRoleProfileId(userDto, profiles, 'patient');
       const resolvedDoctor = resolveRoleProfileId(userDto, profiles, 'doctor');
 
@@ -94,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setDoctorIdState(resolvedDoctor);
         }
       } else if (resolvedPatient) {
-        // Всегда Patient ProfileId — даже если в localStorage раньше лежал publicId.
+        // Всегда Patient ProfileId - даже если в localStorage раньше лежал publicId.
         persistPatientId(resolvedPatient);
         setPatientIdState(resolvedPatient);
       }
@@ -170,6 +171,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    setIsAuthenticated(hasSession());
+    setRoleState(getRole());
+    setPatientIdState(getPatientId());
+    setDoctorIdState(getDoctorId());
+    setPublicIdState(getPublicId());
+    if (hasSession()) await hydrate();
+  }, [hydrate]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       isAuthenticated,
@@ -185,8 +195,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       register,
       logout,
+      refreshProfile,
     }),
-    [isAuthenticated, isLoading, role, patientId, doctorId, publicId, user, error, login, register, logout],
+    [isAuthenticated, isLoading, role, patientId, doctorId, publicId, user, error, login, register, logout, refreshProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

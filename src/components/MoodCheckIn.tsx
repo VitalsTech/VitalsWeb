@@ -30,7 +30,7 @@ export const MOOD_OPTIONS: MoodOption[] = [
   },
 ];
 
-/** Old labels from earlier UI — map to current options. */
+/** Old labels from earlier UI - map to current options. */
 const LEGACY_LABELS: Record<string, MoodCode> = {
   Хорошо: 'better',
   Устала: 'same',

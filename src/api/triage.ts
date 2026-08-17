@@ -99,7 +99,7 @@ export const triageApi = {
     );
   },
 
-  /** Перебор алиасов + alsoPatientIds — чтобы не потерять триаж при publicId≠profileId. */
+  /** Перебор алиасов + alsoPatientIds - чтобы не потерять триаж при publicId≠profileId. */
   async listForPatientAliases(patientIds: string[], limit = 10) {
     const unique = [...new Set(patientIds.map((id) => id.trim()).filter(Boolean))];
     if (unique.length === 0) return [] as TriageSessionDto[];

@@ -56,7 +56,7 @@ export function useDoctorChat(patientId: string | null, doctorId: string | undef
           const activeId = getConsultationId(active);
           if (activeId) id = activeId;
         } catch {
-          /* 404 — create below */
+          /* 404 - create below */
         }
 
         if (!id) {

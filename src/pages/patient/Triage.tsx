@@ -63,7 +63,7 @@ export function Triage() {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="ИИ-триаж"
-        description="Опишите симптомы — ИИ уточнит детали, оценит срочность и предложит завершить триаж."
+        description="Опишите симптомы - ИИ уточнит детали, оценит срочность и предложит завершить триаж."
         actions={
           sessionId ? (
             <Button
@@ -86,7 +86,7 @@ export function Triage() {
             <div className="flex-1 space-y-3 overflow-y-auto p-5 scrollbar-thin">
               {messages.length === 0 ? (
                 <p className="text-[13px] text-text-muted">
-                  Опишите, что вас беспокоит, или выберите быструю фразу справа — начнётся сессия
+                  Опишите, что вас беспокоит, или выберите быструю фразу справа - начнётся сессия
                   ИИ-триажа.
                 </p>
               ) : (
@@ -120,7 +120,7 @@ export function Triage() {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={onComposerKeyDown}
-              placeholder="Опишите симптомы… (Enter — отправить, Shift+Enter — новая строка)"
+              placeholder="Опишите симптомы… (Enter - отправить, Shift+Enter - новая строка)"
               disabled={isCompleted}
               className="min-h-[72px] resize-y"
             />
@@ -147,7 +147,7 @@ export function Triage() {
               )}
 
               <p className="basis-full text-[12px] text-text-muted sm:ml-auto sm:basis-auto">
-                Enter — отправить · Shift+Enter — перенос строки
+                Enter - отправить · Shift+Enter - перенос строки
               </p>
             </div>
           </Card>

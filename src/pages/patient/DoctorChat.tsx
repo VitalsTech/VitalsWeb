@@ -65,7 +65,7 @@ export function DoctorChat() {
               <AsyncState loading={loading} error={error}>
                 {messages.length === 0 ? (
                   <p className="text-[13px] text-text-muted">
-                    Напишите первое сообщение врачу — чат создан автоматически.
+                    Напишите первое сообщение врачу - чат создан автоматически.
                   </p>
                 ) : (
                   messages.map((m) => <ChatBubble key={m.id} message={m} />)

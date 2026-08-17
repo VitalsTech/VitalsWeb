@@ -49,7 +49,7 @@ export function Notifications() {
     <div>
       <PageHeader
         title="Уведомления"
-        description="Записи пациентов, триаж, самочувствие, сообщения и изменения расписания."
+        description="Записи, триаж, сообщения и расписание"
       />
 
       <div className="mb-6 flex flex-wrap gap-2">

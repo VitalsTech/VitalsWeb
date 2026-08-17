@@ -347,7 +347,7 @@ export function Home() {
       return [
         {
           title: '1. ИИ-триаж',
-          description: 'Опишите симптомы — система подберёт маршрут',
+          description: 'Опишите симптомы - система подберёт маршрут',
           status: 'current',
         },
         {
@@ -435,7 +435,7 @@ export function Home() {
           description = 'Консультация завершена';
         } else if (action === 'consultation' && openConsultation) {
           description = isChatConsultation
-            ? 'Открыт асинхронный чат с врачом'
+            ? 'Открыт чат с врачом'
             : description;
         }
 
@@ -450,7 +450,7 @@ export function Home() {
       push(
         'Анализы',
         hasOpenLabOrders
-          ? 'Есть активные направления — откройте статусы'
+          ? 'Есть активные направления - откройте статусы'
           : `Рекомендовано: ${recommendedLabs.slice(0, 3).join(', ')}${
               recommendedLabs.length > 3 ? '…' : ''
             }`,
@@ -458,7 +458,7 @@ export function Home() {
       );
       push(
         specialty ? `Консультация: ${specialty}` : 'Консультация врача',
-        'После анализов — запись к специалисту',
+        'После анализов - запись к специалисту',
         'upcoming',
       );
     } else {
@@ -468,10 +468,10 @@ export function Home() {
           ? 'Консультация завершена'
           : openConsultation
             ? isChatConsultation
-              ? 'Открыт асинхронный чат с врачом'
-              : 'Консультация в процессе'
+              ? 'Открыт чат с врачом'
+            : 'Консультация в процессе'
             : isChatConsultation
-              ? 'Врач ответит в асинхронном чате'
+              ? 'Врач ответит в чате'
               : 'Запишитесь к врачу по рекомендации триажа',
         consultDone ? 'done' : 'current',
       );
@@ -482,9 +482,7 @@ export function Home() {
       const labsDesc = hasOpenLabOrders || hasAnyLabOrders
         ? 'Направления на вкладке «Анализы и рецепты»'
         : protocolLabs.length > 0
-          ? `Из протокола: ${protocolLabs.slice(0, 3).join(', ')}${
-              protocolLabs.length > 3 ? '…' : ''
-            }`
+          ? protocolLabs.slice(0, 3).join(', ') + (protocolLabs.length > 3 ? '…' : '')
           : recommendedLabs.length > 0
             ? `Рекомендовано: ${recommendedLabs.slice(0, 3).join(', ')}${
                 recommendedLabs.length > 3 ? '…' : ''
@@ -519,7 +517,7 @@ export function Home() {
       );
     }
 
-    // Один «текущий» шаг — первый незавершённый.
+    // Один «текущий» шаг - первый незавершённый.
     let sawCurrent = false;
     return built.map((step) => {
       if (step.status === 'done') return step;
@@ -706,7 +704,7 @@ export function Home() {
     <div>
       <PageHeader
         title={`Здравствуйте, ${patientName}`}
-        description="Система ведёт вас по маршруту лечения — следующий шаг всегда под рукой"
+        description="Следующий шаг маршрута"
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_302px]">
@@ -772,7 +770,7 @@ export function Home() {
           {resolvedMoodCode === 'worse' && (
             <div className="mt-4 rounded-[12px] border border-danger/30 bg-danger/5 px-3 py-3">
               <p className="text-[13px] text-text">
-                Если стало хуже — пройдите короткий ИИ-триаж, чтобы обновить маршрут.
+                Если стало хуже - пройдите короткий ИИ-триаж, чтобы обновить маршрут.
               </p>
               <Button
                 size="sm"
@@ -882,7 +880,7 @@ export function Home() {
               <AsyncState loading={history.loading} error={history.error} onRetry={history.reload}>
                 {events.length === 0 ? (
                   <p className="rounded-md border border-border px-4 py-5 text-[13px] text-text-muted">
-                    Пока нет событий — начните с ИИ-триажа или запишитесь к врачу.
+                    Пока нет событий - начните с ИИ-триажа или запишитесь к врачу.
                   </p>
                 ) : (
                   events.map((event, i) => {
