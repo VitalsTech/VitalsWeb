@@ -9,6 +9,11 @@ import {
 
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
 
+/** Gateway origin for REST and SignalR. Empty string means same-origin relative URLs. */
+export function getApiBaseUrl(): string {
+  return BASE_URL;
+}
+
 export class ApiError extends Error {
   status: number;
   body: unknown;

@@ -2,9 +2,21 @@ import type { ChatMessage } from '@/types/chat';
 import { formatChatTime } from '@/lib/chatMessage';
 
 export function ChatBubble({ message }: { message: ChatMessage }) {
+  const time = formatChatTime(message.sentAt);
+
+  if (message.isSystem) {
+    return (
+      <div className="flex flex-col items-center gap-1 py-1">
+        <p className="max-w-[92%] text-center text-[12px] leading-snug text-text-muted">
+          {message.text}
+        </p>
+        {time ? <span className="text-[11px] text-text-muted">{time}</span> : null}
+      </div>
+    );
+  }
+
   const isMine = message.isMine ?? message.from === 'user';
   const isAssistant = !isMine && (message.from === 'ai' || message.from === 'doctor');
-  const time = formatChatTime(message.sentAt);
 
   return (
     <div className={`flex flex-col gap-1 ${isMine ? 'items-end' : 'items-start'}`}>

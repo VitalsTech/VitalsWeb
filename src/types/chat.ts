@@ -5,4 +5,5 @@ export type ChatMessage = {
   sentAt?: string;
   readAt?: string | null;
   isMine?: boolean;
+  isSystem?: boolean;
 };

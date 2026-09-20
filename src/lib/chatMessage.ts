@@ -7,9 +7,11 @@ export function toChatMessage(
   viewer: 'patient' | 'doctor',
 ): ChatMessage {
   const role = String(dto.senderRole ?? dto.role ?? 'doctor').toLowerCase();
+  const type = String(dto.messageType ?? '').toLowerCase();
+  const isSystem = type === 'system';
   const fromPatient = role.includes('patient') || role.includes('user');
   const from: ChatMessage['from'] = fromPatient ? 'user' : 'doctor';
-  const isMine = viewer === 'patient' ? fromPatient : !fromPatient;
+  const isMine = isSystem ? false : viewer === 'patient' ? fromPatient : !fromPatient;
   const id = String(dto.id ?? dto.messageId ?? fallbackId);
   const sentAt = dto.sentAt ?? dto.createdAt;
   return {
@@ -19,6 +21,7 @@ export function toChatMessage(
     sentAt: typeof sentAt === 'string' ? sentAt : undefined,
     readAt: dto.readAt ?? null,
     isMine,
+    isSystem,
   };
 }
 

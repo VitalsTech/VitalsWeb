@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ChatBubble } from '@/components/ChatBubble';
 import { AsyncState } from '@/components/AsyncState';
+import { VideoCallStage } from '@/components/VideoCallStage';
+import { ClinicalActionsPanel } from '@/components/ClinicalActionsPanel';
 import { useAuth } from '@/auth/AuthProvider';
 import { useAsyncData } from '@/lib/useAsyncData';
 import { medicalRecordsApi } from '@/api/medicalRecords';
@@ -16,6 +18,8 @@ import {
 } from '@/lib/consultationSummary';
 import { patientIdCandidates, resolvePatientIdentity } from '@/lib/resolvePatientId';
 import { useChatAutoScroll } from '@/lib/useChatAutoScroll';
+import { useConsultationHub } from '@/lib/useConsultationHub';
+import { useConsultationVideo } from '@/lib/useConsultationVideo';
 import { useConsultationChat } from './useConsultationChat';
 import { getContact, removeContact, upsertContact } from './contacts';
 import { CompleteConsultationModal } from './CompleteConsultationModal';
@@ -67,13 +71,34 @@ export function PatientChat() {
     contact?.summary ??
     'Сводка появится после консультации.';
 
-  const { sessionId, messages, loading, sending, error, send } = useConsultationChat(
+  const { sessionId, messages, loading, sending, error, send, reload } = useConsultationChat(
     doctorId,
     patientId,
     sessionIdParam,
     patientAliases,
   );
   const chatEndRef = useChatAutoScroll([messages, sending, loading]);
+  const hub = useConsultationHub(completed ? null : sessionId);
+  const video = useConsultationVideo({
+    sessionId,
+    hub,
+    polite: false,
+    enabled: Boolean(sessionId) && !completed,
+  });
+
+  useEffect(() => {
+    return hub.subscribe({
+      onMessage: () => {
+        void reload();
+      },
+      onClinicalAction: () => {
+        void reload();
+      },
+      onStatusChanged: (status) => {
+        if (status.toLowerCase() === 'completed') setCompleted(true);
+      },
+    });
+  }, [hub, reload]);
 
   useEffect(() => {
     const identity = identityQuery.data;
@@ -146,73 +171,111 @@ export function PatientChat() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
-        <Card className="p-6">
-          <h3 className="text-[16px] font-semibold text-text">Контекст пациента</h3>
-          <AsyncState
-            loading={state.loading || mineQuery.loading || identityQuery.loading}
-            error={null}
-            onRetry={() => {
-              state.reload();
-              mineQuery.reload();
-              identityQuery.reload();
-            }}
-          >
-            <p className="mt-3 text-[13px] text-text-muted">{summaryText}</p>
-            <p className="mt-3 text-[13px] text-text-muted">
-              Аллергии: {state.data?.allergies ?? 'не указаны'}
-            </p>
-            {state.error && (
-              <p className="mt-3 text-[12px] text-text-muted">
-                Медкарта недоступна ({state.error}). Сводка из консультации, если есть.
+      {sessionId && !completed ? (
+        <VideoCallStage
+          video={video}
+          sessionId={sessionId}
+          requireConsent={false}
+          hubReady={hub.ready}
+          hubError={hub.error}
+          before={
+            <Card className="p-6">
+              <h3 className="text-[16px] font-semibold text-text">Контекст пациента</h3>
+              <AsyncState
+                loading={state.loading || mineQuery.loading || identityQuery.loading}
+                error={null}
+                onRetry={() => {
+                  state.reload();
+                  mineQuery.reload();
+                  identityQuery.reload();
+                }}
+              >
+                <p className="mt-3 text-[13px] text-text-muted">{summaryText}</p>
+                <p className="mt-3 text-[13px] text-text-muted">
+                  Аллергии: {state.data?.allergies ?? 'не указаны'}
+                </p>
+                {state.error && (
+                  <p className="mt-3 text-[12px] text-text-muted">
+                    Медкарта недоступна ({state.error}). Сводка из консультации, если есть.
+                  </p>
+                )}
+              </AsyncState>
+            </Card>
+          }
+          chat={
+            <>
+              <Card className="js-chat-log flex max-h-[540px] min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-6 scrollbar-thin">
+                <AsyncState loading={loading || identityQuery.loading} error={error}>
+                  {messages.length === 0 ? (
+                    <p className="text-[13px] text-text-muted">
+                      Напишите первое сообщение пациенту — чат создан автоматически.
+                    </p>
+                  ) : (
+                    messages.map((m) => <ChatBubble key={m.id} message={m} />)
+                  )}
+                  <div ref={chatEndRef} />
+                </AsyncState>
+              </Card>
+              <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+                <Input
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder="Напишите сообщение…"
+                  className="flex-1"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      void submit();
+                    }
+                  }}
+                />
+                <div className="flex gap-3">
+                  <Button variant="secondary" disabled>
+                    Файл
+                  </Button>
+                  <Button variant="secondary" disabled>
+                    Рецепт
+                  </Button>
+                  <Button disabled={sending || !sessionId} onClick={() => void submit()}>
+                    Отправить
+                  </Button>
+                </div>
+              </Card>
+            </>
+          }
+          extra={<ClinicalActionsPanel sessionId={sessionId} hub={hub} enabled />}
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+          <Card className="p-6">
+            <h3 className="text-[16px] font-semibold text-text">Контекст пациента</h3>
+            <AsyncState
+              loading={state.loading || mineQuery.loading || identityQuery.loading}
+              error={null}
+              onRetry={() => {
+                state.reload();
+                mineQuery.reload();
+                identityQuery.reload();
+              }}
+            >
+              <p className="mt-3 text-[13px] text-text-muted">{summaryText}</p>
+              <p className="mt-3 text-[13px] text-text-muted">
+                Аллергии: {state.data?.allergies ?? 'не указаны'}
               </p>
-            )}
-          </AsyncState>
-        </Card>
-
-        <div className="flex flex-col gap-6">
+            </AsyncState>
+          </Card>
           <Card className="flex max-h-[540px] flex-col gap-3 overflow-y-auto p-6 scrollbar-thin">
             <AsyncState loading={loading || identityQuery.loading} error={error}>
               {messages.length === 0 ? (
-                <p className="text-[13px] text-text-muted">
-                  Напишите первое сообщение пациенту — чат создан автоматически.
-                </p>
+                <p className="text-[13px] text-text-muted">Сообщений нет.</p>
               ) : (
                 messages.map((m) => <ChatBubble key={m.id} message={m} />)
               )}
               <div ref={chatEndRef} />
             </AsyncState>
           </Card>
-
-          {!completed && (
-            <Card className="flex flex-col gap-3 p-6 sm:flex-row sm:items-center">
-              <Input
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder="Напишите сообщение…"
-                className="flex-1"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    void submit();
-                  }
-                }}
-              />
-              <div className="flex gap-3">
-                <Button variant="secondary" disabled>
-                  Файл
-                </Button>
-                <Button variant="secondary" disabled>
-                  Рецепт
-                </Button>
-                <Button disabled={sending || !sessionId} onClick={() => void submit()}>
-                  Отправить
-                </Button>
-              </div>
-            </Card>
-          )}
         </div>
-      </div>
+      )}
 
       {completeOpen && sessionId && (
         <CompleteConsultationModal
@@ -225,6 +288,7 @@ export function PatientChat() {
             mineQuery.reload();
             state.reload();
           }}
+          onBeforeComplete={() => video.stop()}
         />
       )}
     </div>

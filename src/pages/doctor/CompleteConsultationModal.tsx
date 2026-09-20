@@ -19,12 +19,14 @@ export function CompleteConsultationModal({
   sessionId,
   onClose,
   onCompleted,
+  onBeforeComplete,
 }: {
   sessionId: string;
   /** @deprecated бэкенд сам создаёт lab-orders/prescriptions из протокола */
   patientId?: string | null;
   onClose: () => void;
   onCompleted: () => void;
+  onBeforeComplete?: () => Promise<void> | void;
 }) {
   const [complaints, setComplaints] = useState('');
   const [anamnesis, setAnamnesis] = useState('');
@@ -58,6 +60,7 @@ export function CompleteConsultationModal({
     };
 
     try {
+      await onBeforeComplete?.();
       // Бэкенд сам создаёт lab-orders и рецепты из массивов протокола — не дублируем.
       await consultationsApi.complete(sessionId, payload);
       onCompleted();
